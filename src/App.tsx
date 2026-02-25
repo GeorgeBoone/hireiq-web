@@ -5,6 +5,294 @@ import { auth, googleProvider } from "./firebase";
 
 const API_URL = "http://localhost:8080";
 
+
+interface Profile {
+  id: string;
+  email: string;
+  name: string;
+  bio: string;
+  location: string;
+  workStyle: string;
+  salaryMin: number;
+  salaryMax: number;
+  skills: string[];
+  githubUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function ProfileEditor({ profile, user, onUpdate }: {
+  profile: Profile;
+  user: User;
+  onUpdate: (p: Profile) => void;
+}) {
+  const [form, setForm] = useState<Profile>({ ...profile });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [newSkill, setNewSkill] = useState("");
+
+  // Reset form when profile changes externally
+  useEffect(() => {
+    setForm({ ...profile });
+  }, [profile]);
+
+  const updateField = (key: keyof Profile, value: string | number) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_URL}/profile`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        onUpdate(updated);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+    }
+    setSaving(false);
+  };
+
+  const addSkill = async () => {
+    if (!newSkill.trim() || form.skills.includes(newSkill.trim())) return;
+    const updatedSkills = [...form.skills, newSkill.trim()];
+    setForm(prev => ({ ...prev, skills: updatedSkills }));
+    setNewSkill("");
+    setSaved(false);
+
+    // Save skills immediately
+    try {
+      const token = await user.getIdToken();
+      await fetch(`${API_URL}/profile/skills`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ skills: updatedSkills }),
+      });
+    } catch (err) {
+      console.error("Skill save error:", err);
+    }
+  };
+
+  const removeSkill = async (skill: string) => {
+    const updatedSkills = form.skills.filter(s => s !== skill);
+    setForm(prev => ({ ...prev, skills: updatedSkills }));
+
+    try {
+      const token = await user.getIdToken();
+      await fetch(`${API_URL}/profile/skills`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ skills: updatedSkills }),
+      });
+    } catch (err) {
+      console.error("Skill remove error:", err);
+    }
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid rgba(0,0,0,0.08)",
+    background: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    color: "#1e293b",
+    fontFamily: "inherit",
+    outline: "none",
+  };
+
+  const labelStyle = {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: 600 as const,
+    marginBottom: 6,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.5px",
+    display: "block",
+  };
+
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.8)",
+      borderRadius: 20,
+      padding: "28px 32px",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+      border: "1px solid rgba(0,0,0,0.06)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700 }}>Your Profile</h2>
+        <button onClick={handleSave} disabled={saving} style={{
+          padding: "10px 24px",
+          borderRadius: 10,
+          border: "none",
+          background: saved ? "#16a34a" : "linear-gradient(135deg, #4f46e5, #7c3aed)",
+          color: "#fff",
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: saving ? "wait" : "pointer",
+          opacity: saving ? 0.7 : 1,
+          transition: "all 0.2s ease",
+        }}>
+          {saving ? "Saving..." : saved ? "✓ Saved" : "Save Profile"}
+        </button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+        <div>
+          <label style={labelStyle}>Full Name</label>
+          <input
+            value={form.name}
+            onChange={e => updateField("name", e.target.value)}
+            placeholder="Your name"
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Email</label>
+          <input value={form.email} disabled style={{ ...inputStyle, opacity: 0.5, cursor: "not-allowed" }} />
+        </div>
+        <div>
+          <label style={labelStyle}>Location</label>
+          <input
+            value={form.location}
+            onChange={e => updateField("location", e.target.value)}
+            placeholder="e.g. San Francisco, CA"
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Work Style</label>
+          <select
+            value={form.workStyle}
+            onChange={e => updateField("workStyle", e.target.value)}
+            style={{ ...inputStyle, cursor: "pointer" }}
+          >
+            <option value="">Select...</option>
+            <option value="remote">Remote</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="onsite">On-site</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Salary Min ($)</label>
+          <input
+            type="number"
+            value={form.salaryMin || ""}
+            onChange={e => updateField("salaryMin", parseInt(e.target.value) || 0)}
+            placeholder="120000"
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Salary Max ($)</label>
+          <input
+            type="number"
+            value={form.salaryMax || ""}
+            onChange={e => updateField("salaryMax", parseInt(e.target.value) || 0)}
+            placeholder="180000"
+            style={inputStyle}
+          />
+        </div>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labelStyle}>Bio</label>
+          <textarea
+            value={form.bio}
+            onChange={e => updateField("bio", e.target.value)}
+            placeholder="Tell us about yourself and what you're looking for..."
+            rows={3}
+            style={{ ...inputStyle, resize: "vertical" }}
+          />
+        </div>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labelStyle}>GitHub URL</label>
+          <input
+            value={form.githubUrl}
+            onChange={e => updateField("githubUrl", e.target.value)}
+            placeholder="https://github.com/yourusername"
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      {/* Skills */}
+      <div>
+        <label style={labelStyle}>Skills</label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          {form.skills.map(skill => (
+            <span key={skill} style={{
+              padding: "6px 12px",
+              borderRadius: 20,
+              fontSize: 12,
+              fontWeight: 500,
+              background: "rgba(79,70,229,0.08)",
+              color: "#4f46e5",
+              border: "1px solid rgba(79,70,229,0.15)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}>
+              {skill}
+              <span onClick={() => removeSkill(skill)} style={{
+                cursor: "pointer",
+                opacity: 0.5,
+                fontSize: 14,
+                lineHeight: 1,
+              }}>×</span>
+            </span>
+          ))}
+          {form.skills.length === 0 && (
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>No skills added yet</span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={newSkill}
+            onChange={e => setNewSkill(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") addSkill(); }}
+            placeholder="Add a skill (press Enter)"
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button onClick={addSkill} style={{
+            padding: "10px 18px",
+            borderRadius: 10,
+            border: "none",
+            background: newSkill.trim() ? "rgba(79,70,229,0.1)" : "rgba(0,0,0,0.02)",
+            color: newSkill.trim() ? "#4f46e5" : "#94a3b8",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: newSkill.trim() ? "pointer" : "default",
+          }}>Add</button>
+        </div>
+      </div>
+
+      {/* Meta info */}
+      <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid rgba(0,0,0,0.04)", display: "flex", gap: 24 }}>
+        <div style={{ fontSize: 11, color: "#cbd5e1" }}>ID: {profile.id}</div>
+        <div style={{ fontSize: 11, color: "#cbd5e1" }}>Joined: {new Date(profile.createdAt).toLocaleDateString()}</div>
+      </div>
+    </div>
+  );
+}
+
+
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -157,110 +445,84 @@ function App() {
     );
   }
 
-  // Signed in — show dashboard
-  return (
-    <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(135deg, #f8f9fc, #eef1f8, #f3eef8)",
-      fontFamily: "'Inter', system-ui, sans-serif",
-      padding: 32,
-    }}>
-      <div style={{ maxWidth: 800, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{
-          background: "rgba(255,255,255,0.8)",
-          borderRadius: 20,
-          padding: "24px 32px",
-          marginBottom: 24,
-          boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-          border: "1px solid rgba(0,0,0,0.06)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}>
-          <div>
-            <h1 style={{
-              fontSize: 24,
-              fontWeight: 800,
-              marginBottom: 4,
-              background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}>HireIQ</h1>
-            <p style={{ color: "#64748b", fontSize: 13 }}>
-              Welcome, {user.displayName || user.email}
-            </p>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {user.photoURL && (
-              <img src={user.photoURL} alt="" style={{
-                width: 36, height: 36, borderRadius: "50%",
-                border: "2px solid rgba(79,70,229,0.2)",
-              }} />
-            )}
-            <button onClick={handleSignOut} style={{
-              padding: "8px 16px",
-              borderRadius: 10,
-              border: "1px solid rgba(0,0,0,0.08)",
-              background: "rgba(255,255,255,0.8)",
-              color: "#64748b",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}>Sign Out</button>
-          </div>
+  
+ // Signed in — show dashboard
+ return (
+  <div style={{
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #f8f9fc, #eef1f8, #f3eef8)",
+    fontFamily: "'Inter', system-ui, sans-serif",
+    padding: 32,
+  }}>
+    <div style={{ maxWidth: 800, margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{
+        background: "rgba(255,255,255,0.8)",
+        borderRadius: 20,
+        padding: "24px 32px",
+        marginBottom: 24,
+        boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+        border: "1px solid rgba(0,0,0,0.06)",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: 24,
+            fontWeight: 800,
+            marginBottom: 4,
+            background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}>HireIQ</h1>
+          <p style={{ color: "#64748b", fontSize: 13 }}>
+            Welcome, {user.displayName || user.email}
+          </p>
         </div>
-
-        {error && (
-          <div style={{
-            padding: "12px 20px",
-            borderRadius: 12,
-            background: "rgba(220,38,38,0.06)",
-            color: "#dc2626",
-            fontSize: 13,
-            marginBottom: 20,
-            border: "1px solid rgba(220,38,38,0.1)",
-          }}>{error}</div>
-        )}
-
-        {/* Profile Card */}
-        <div style={{
-          background: "rgba(255,255,255,0.8)",
-          borderRadius: 20,
-          padding: "24px 32px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-          border: "1px solid rgba(0,0,0,0.06)",
-        }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>
-            Your Profile
-          </h2>
-          {profile ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              {[
-                { label: "Name", value: profile.name },
-                { label: "Email", value: profile.email },
-                { label: "User ID", value: profile.id },
-                { label: "Created", value: new Date(profile.createdAt).toLocaleDateString() },
-              ].map((field) => (
-                <div key={field.label}>
-                  <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    {field.label}
-                  </div>
-                  <div style={{ fontSize: 14, color: "#1e293b", fontWeight: 500 }}>
-                    {field.value || "—"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p style={{ color: "#94a3b8", fontSize: 13 }}>
-              Could not load profile from server.
-            </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {user.photoURL && (
+            <img src={user.photoURL} alt="" style={{
+              width: 36, height: 36, borderRadius: "50%",
+              border: "2px solid rgba(79,70,229,0.2)",
+            }} />
           )}
+          <button onClick={handleSignOut} style={{
+            padding: "8px 16px",
+            borderRadius: 10,
+            border: "1px solid rgba(0,0,0,0.08)",
+            background: "rgba(255,255,255,0.8)",
+            color: "#64748b",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}>Sign Out</button>
         </div>
       </div>
+
+      {error && (
+        <div style={{
+          padding: "12px 20px",
+          borderRadius: 12,
+          background: "rgba(220,38,38,0.06)",
+          color: "#dc2626",
+          fontSize: 13,
+          marginBottom: 20,
+          border: "1px solid rgba(220,38,38,0.1)",
+        }}>{error}</div>
+      )}
+
+      {/* Profile Editor */}
+      {profile && (
+        <ProfileEditor
+          profile={profile}
+          user={user}
+          onUpdate={setProfile}
+        />
+      )}
     </div>
-  );
+  </div>
+);
 }
 
 export default App;
