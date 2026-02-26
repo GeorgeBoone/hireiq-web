@@ -1,7 +1,9 @@
 // src/JobList.tsx
 import { useState, useEffect } from "react";
-import type { Job, JobFilter } from "./api";
-import * as api from "./api";
+//import { Job, getJobs, toggleBookmark, deleteJob } from "./api";
+import type { Job } from "./api";
+import { getJobs, toggleBookmark, deleteJob } from "./api";
+import KanbanBoard from "./KanbanBoard";
 
 interface JobListProps {
   token: string;
@@ -9,31 +11,30 @@ interface JobListProps {
   onAddJob: () => void;
 }
 
+type ViewMode = "list" | "kanban";
+
 export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Filter state
   const [search, setSearch] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("kanban");
 
-  // Fetch jobs whenever filters change
   useEffect(() => {
     loadJobs();
-  }, [search, locationFilter, bookmarkedOnly]);
+  }, []);
 
   async function loadJobs() {
     setLoading(true);
     setError(null);
     try {
-      const filter: JobFilter = {};
-      if (search.trim()) filter.search = search.trim().toLowerCase();
-      if (locationFilter) filter.location = locationFilter;
-      if (bookmarkedOnly) filter.bookmarked = true;
-
-      const data = await api.listJobs(token, filter);
+      const params: Record<string, string> = {};
+      if (search.trim()) params.search = search.trim();
+      if (locationFilter) params.location = locationFilter;
+      if (bookmarkedOnly) params.bookmarked = "true";
+      const data = await getJobs(token, Object.keys(params).length > 0 ? params : undefined);
       setJobs(data);
     } catch (err: any) {
       setError(err.message);
@@ -42,14 +43,18 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
     }
   }
 
+  // Re-fetch when filters change (debounced by user action)
+  useEffect(() => {
+    const timeout = setTimeout(loadJobs, 300);
+    return () => clearTimeout(timeout);
+  }, [search, locationFilter, bookmarkedOnly]);
+
   async function handleBookmark(e: React.MouseEvent, job: Job) {
-    e.stopPropagation(); // Don't trigger row click
+    e.stopPropagation();
     try {
-      const result = await api.toggleBookmark(token, job.id);
+      const result = await toggleBookmark(token, job.id);
       setJobs((prev) =>
-        prev.map((j) =>
-          j.id === job.id ? { ...j, bookmarked: result.bookmarked } : j
-        )
+        prev.map((j) => (j.id === job.id ? { ...j, bookmarked: result.bookmarked } : j))
       );
     } catch (err: any) {
       setError(err.message);
@@ -60,160 +65,284 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
     e.stopPropagation();
     if (!confirm(`Delete "${job.title}" at ${job.company}?`)) return;
     try {
-      await api.deleteJob(token, job.id);
+      await deleteJob(token, job.id);
       setJobs((prev) => prev.filter((j) => j.id !== job.id));
     } catch (err: any) {
       setError(err.message);
     }
   }
 
+  function handleStatusChange(jobId: string, newStatus: string) {
+    setJobs((prev) =>
+      prev.map((j) => (j.id === jobId ? { ...j, status: newStatus } : j))
+    );
+  }
+
+  // Filter jobs for list view
+  const filteredJobs = jobs.filter((j) => {
+    if (search.trim()) {
+      const s = search.toLowerCase();
+      if (!j.title.toLowerCase().includes(s) && !j.company.toLowerCase().includes(s)) return false;
+    }
+    if (bookmarkedOnly && !j.bookmarked) return false;
+    return true;
+  });
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>Jobs</h2>
-        <button
-          onClick={onAddJob}
-          style={{
-            padding: "8px 16px",
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          + Add Job
-        </button>
+      {/* Page header */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20,
+      }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+            Job Tracker
+          </h1>
+          <p style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 4 }}>
+            {jobs.length} job{jobs.length !== 1 ? "s" : ""} tracked
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* View toggle */}
+          <div style={{
+            display: "flex", borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--border-light)", overflow: "hidden",
+          }}>
+            <button
+              onClick={() => setViewMode("kanban")}
+              style={{
+                padding: "7px 14px", border: "none", fontSize: 13, fontWeight: 600,
+                background: viewMode === "kanban" ? "var(--accent)" : "var(--bg-surface)",
+                color: viewMode === "kanban" ? "white" : "var(--text-muted)",
+                cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 5,
+              }}
+            >
+              <span style={{ fontSize: 14 }}>▦</span> Board
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              style={{
+                padding: "7px 14px", border: "none", fontSize: 13, fontWeight: 600,
+                background: viewMode === "list" ? "var(--accent)" : "var(--bg-surface)",
+                color: viewMode === "list" ? "white" : "var(--text-muted)",
+                cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 5,
+              }}
+            >
+              <span style={{ fontSize: 14 }}>☰</span> List
+            </button>
+          </div>
+          <button
+            onClick={onAddJob}
+            style={{
+              padding: "9px 20px",
+              background: "var(--accent)",
+              color: "white",
+              border: "none",
+              borderRadius: "var(--radius-sm)",
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            + Add Job
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        <input
-          type="text"
-          placeholder="Search jobs..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", flex: 1, minWidth: 150 }}
-        />
-        <select
-          value={locationFilter}
-          onChange={(e) => setLocationFilter(e.target.value)}
-          style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
-        >
-          <option value="">All Locations</option>
-          <option value="remote">Remote</option>
-          <option value="onsite">On-site</option>
-        </select>
-        <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+      {/* Filters bar — show for list view, minimal for kanban */}
+      {viewMode === "list" && (
+        <div style={{
+          display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap",
+          padding: "14px 18px",
+          background: "var(--bg-surface)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border-light)",
+        }}>
           <input
-            type="checkbox"
-            checked={bookmarkedOnly}
-            onChange={(e) => setBookmarkedOnly(e.target.checked)}
+            type="text"
+            placeholder="Search jobs..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ flex: 1, minWidth: 200 }}
           />
-          Bookmarked
-        </label>
-      </div>
+          <select
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+            style={{ width: 160 }}
+          >
+            <option value="">All Locations</option>
+            <option value="remote">Remote</option>
+            <option value="onsite">On-site</option>
+          </select>
+          <label style={{
+            display: "flex", alignItems: "center", gap: 6,
+            cursor: "pointer", fontSize: 14, color: "var(--text-secondary)",
+            padding: "0 8px",
+          }}>
+            <input
+              type="checkbox"
+              checked={bookmarkedOnly}
+              onChange={(e) => setBookmarkedOnly(e.target.checked)}
+            />
+            Bookmarked
+          </label>
+        </div>
+      )}
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && (
+        <div style={{
+          padding: "12px 16px", background: "#fef2f2",
+          border: "1px solid #fecaca", borderRadius: "var(--radius-sm)",
+          color: "#dc2626", fontSize: 14, marginBottom: 16,
+        }}>
+          {error}
+        </div>
+      )}
 
       {loading ? (
-        <p>Loading jobs...</p>
-      ) : jobs.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>
-          <p>No jobs yet. Click "+ Add Job" to save your first one.</p>
+        <div style={{ textAlign: "center", padding: 48, color: "var(--text-muted)" }}>
+          Loading jobs...
         </div>
+      ) : jobs.length === 0 ? (
+        <div style={{
+          textAlign: "center", padding: 60,
+          background: "var(--bg-surface)",
+          borderRadius: "var(--radius-lg)",
+          border: "1px solid var(--border-light)",
+        }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+          <h2 style={{ color: "var(--text-primary)", fontSize: 18, marginBottom: 8 }}>
+            No jobs saved yet
+          </h2>
+          <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: 14 }}>
+            Add jobs manually or save them from the Discover feed
+          </p>
+          <button
+            onClick={onAddJob}
+            style={{
+              padding: "10px 24px", background: "var(--accent)", color: "white",
+              border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            + Add Your First Job
+          </button>
+        </div>
+      ) : viewMode === "kanban" ? (
+        <KanbanBoard
+          jobs={jobs}
+          token={token}
+          onJobClick={onSelectJob}
+          onStatusChange={handleStatusChange}
+        />
       ) : (
+        /* List view */
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {jobs.map((job) => (
-            <div
-              key={job.id}
-              onClick={() => onSelectJob(job)}
-              style={{
-                padding: 16,
-                border: "1px solid #e5e7eb",
-                borderRadius: 8,
-                cursor: "pointer",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
-            >
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <strong style={{ fontSize: 16 }}>{job.title}</strong>
-                  {job.match_score > 0 && (
-                    <span
-                      style={{
-                        fontSize: 12,
-                        padding: "2px 6px",
-                        borderRadius: 4,
-                        background: job.match_score >= 80 ? "#dcfce7" : job.match_score >= 60 ? "#fef9c3" : "#fef2f2",
-                        color: job.match_score >= 80 ? "#166534" : job.match_score >= 60 ? "#854d0e" : "#991b1b",
-                      }}
-                    >
-                      {job.match_score}% match
+          {filteredJobs.map((job) => {
+            const statusColors: Record<string, { bg: string; text: string }> = {
+              saved: { bg: "#ede9fe", text: "#6366f1" },
+              applied: { bg: "#f3e8ff", text: "#8b5cf6" },
+              screening: { bg: "#fef3c7", text: "#d97706" },
+              interview: { bg: "#dbeafe", text: "#2563eb" },
+              offer: { bg: "#dcfce7", text: "#16a34a" },
+              rejected: { bg: "#f1f5f9", text: "#94a3b8" },
+            };
+            const st = statusColors[job.status || "saved"] || statusColors.saved;
+
+            return (
+              <div
+                key={job.id}
+                onClick={() => onSelectJob(job)}
+                style={{
+                  padding: "16px 20px",
+                  background: "var(--bg-surface)",
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "var(--accent)";
+                  e.currentTarget.style.boxShadow = "var(--shadow-sm)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "var(--border-light)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <strong style={{ fontSize: 15, color: "var(--text-primary)" }}>{job.title}</strong>
+                    {/* Status badge */}
+                    <span style={{
+                      fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600,
+                      background: st.bg, color: st.text,
+                      textTransform: "capitalize",
+                    }}>
+                      {job.status || "saved"}
                     </span>
+                    {job.matchScore > 0 && (
+                      <span style={{
+                        fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600,
+                        background: job.matchScore >= 80 ? "#dcfce7"
+                          : job.matchScore >= 60 ? "#dbeafe" : "#fef3c7",
+                        color: job.matchScore >= 80 ? "#16a34a"
+                          : job.matchScore >= 60 ? "#2563eb" : "#d97706",
+                      }}>
+                        {job.matchScore}% match
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ color: "var(--text-muted)", marginTop: 4, fontSize: 14 }}>
+                    {job.company}
+                    {job.location && ` · ${job.location}`}
+                    {job.salaryRange && ` · ${job.salaryRange}`}
+                  </div>
+                  {job.tags && job.tags.length > 0 && (
+                    <div style={{ marginTop: 8, display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      {job.tags.map((tag) => (
+                        <span key={tag} style={{
+                          fontSize: 11, padding: "2px 8px",
+                          background: "#ede9fe", color: "#6366f1",
+                          borderRadius: 4, fontWeight: 500,
+                        }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
-                <div style={{ color: "#6b7280", marginTop: 4 }}>
-                  {job.company}
-                  {job.location && ` · ${job.location}`}
-                  {job.salary_range && ` · ${job.salary_range}`}
+                <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 16 }}>
+                  <button
+                    onClick={(e) => handleBookmark(e, job)}
+                    title={job.bookmarked ? "Remove bookmark" : "Bookmark"}
+                    style={{
+                      background: "none", border: "none", fontSize: 20, padding: 4,
+                      color: job.bookmarked ? "#d97706" : "var(--text-faint)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {job.bookmarked ? "★" : "☆"}
+                  </button>
+                  <button
+                    onClick={(e) => handleDelete(e, job)}
+                    title="Delete job"
+                    style={{
+                      background: "none", border: "none", fontSize: 16, padding: 4,
+                      color: "var(--text-faint)", cursor: "pointer",
+                    }}
+                  >
+                    ✕
+                  </button>
                 </div>
-                {job.tags && job.tags.length > 0 && (
-                  <div style={{ marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    {job.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        style={{
-                          fontSize: 11,
-                          padding: "1px 6px",
-                          background: "#e0e7ff",
-                          color: "#3730a3",
-                          borderRadius: 4,
-                        }}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 12 }}>
-                <button
-                  onClick={(e) => handleBookmark(e, job)}
-                  title={job.bookmarked ? "Remove bookmark" : "Bookmark"}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: 20,
-                    padding: 4,
-                  }}
-                >
-                  {job.bookmarked ? "★" : "☆"}
-                </button>
-                <button
-                  onClick={(e) => handleDelete(e, job)}
-                  title="Delete job"
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: 16,
-                    color: "#9ca3af",
-                    padding: 4,
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
