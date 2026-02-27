@@ -36,6 +36,9 @@ export interface Profile {
 export const getProfile = (token: string): Promise<Profile> =>
   apiFetch("/profile", token);
 
+export const syncUser = (token: string) =>
+  apiFetch("/auth/sync", token, { method: "POST" });
+
 export const updateProfile = (token: string, data: Partial<Profile>) =>
   apiFetch("/profile", token, { method: "PUT", body: JSON.stringify(data) });
 
@@ -44,9 +47,6 @@ export const updateSkills = (token: string, skills: string[]) =>
     method: "PUT",
     body: JSON.stringify({ skills }),
   });
-
-  export const syncUser = (token: string) =>
-    apiFetch("/auth/google", token, { method: "POST" });
 
 // ─── Jobs ───────────────────────────────────────────
 export interface Job {
@@ -142,3 +142,61 @@ export const dismissFeedJob = (token: string, id: string) =>
 
 export const saveFeedJob = (token: string, id: string) =>
   apiFetch(`/feed/${id}/save`, token, { method: "POST" });
+
+// ─── Resume Critique ────────────────────────────────
+export interface CritiqueIssue {
+  cat: string;
+  sev: "critical" | "warning" | "info";
+  msg: string;
+}
+
+export interface CritiqueResult {
+  score: number;
+  issues: CritiqueIssue[];
+  strengths: string[];
+  topTip?: string;
+  targetJob?: Job | null;
+  aiPowered?: boolean;
+}
+
+export interface FixSuggestion {
+  before: string;
+  after: string;
+  explanation: string;
+}
+
+export const uploadResume = async (token: string, file: File): Promise<{ text: string; filename: string }> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/resume/upload`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Failed to upload resume");
+  }
+  return res.json();
+};
+
+export const aiCritique = (
+  token: string,
+  resumeText: string,
+  jobId?: string
+): Promise<CritiqueResult> =>
+  apiFetch("/resume/critique", token, {
+    method: "POST",
+    body: JSON.stringify({ resumeText, jobId }),
+  });
+
+export const aiFix = (
+  token: string,
+  resumeText: string,
+  issue: CritiqueIssue,
+  jobId?: string
+): Promise<{ suggestions: FixSuggestion[] }> =>
+  apiFetch("/resume/fix", token, {
+    method: "POST",
+    body: JSON.stringify({ resumeText, issue, jobId }),
+  });

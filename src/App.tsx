@@ -9,6 +9,7 @@ import JobList from "./JobList";
 import JobForm from "./JobForm";
 import JobDetail from "./JobDetail";
 import Discover from "./Discover";
+import ResumeCritique from "./ResumeCritique";
 
 type View =
   | { page: "jobs" }
@@ -16,6 +17,7 @@ type View =
   | { page: "job-detail"; job: Job }
   | { page: "job-add" }
   | { page: "job-edit"; job: Job }
+  | { page: "resume"; preselectedJobId?: string }
   | { page: "profile" };
 
 function App() {
@@ -149,6 +151,7 @@ function App() {
   // ── Tab styling ─────────────────────────────────────
   const isActive = (check: string) => {
     if (check === "tracker") return view.page.startsWith("job");
+    if (check === "resume") return view.page === "resume";
     return view.page === check;
   };
 
@@ -217,6 +220,7 @@ function App() {
             }}>
               <button onClick={() => setView({ page: "discover" })} style={tabStyle("discover")}>Discover</button>
               <button onClick={() => setView({ page: "jobs" })} style={tabStyle("tracker")}>Tracker</button>
+              <button onClick={() => setView({ page: "resume" })} style={tabStyle("resume")}>Resume</button>
               <button onClick={() => setView({ page: "profile" })} style={tabStyle("profile")}>Profile</button>
             </div>
           </div>
@@ -281,11 +285,19 @@ function App() {
 
         {view.page === "discover" && <Discover token={token} onSelectJob={(job) => setView({ page: "job-detail", job })} />}
 
+        {view.page === "resume" && (
+          <ResumeCritique
+            token={token}
+            preselectedJobId={view.preselectedJobId || null}
+          />
+        )}
+
         {view.page === "job-detail" && (
           <JobDetail
             job={view.job}
             onEdit={() => setView({ page: "job-edit", job: view.job })}
             onBack={() => setView({ page: "jobs" })}
+            onCritique={(jobId) => setView({ page: "resume", preselectedJobId: jobId })}
           />
         )}
 

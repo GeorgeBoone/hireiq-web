@@ -5,9 +5,10 @@ interface JobDetailProps {
   job: Job;
   onEdit: () => void;
   onBack: () => void;
+  onCritique?: (jobId: string) => void;
 }
 
-export default function JobDetail({ job, onEdit, onBack }: JobDetailProps) {
+export default function JobDetail({ job, onEdit, onBack, onCritique }: JobDetailProps) {
   return (
     <div style={{ maxWidth: "var(--content-narrow)", margin: "0 auto" }}>
       {/* Top bar */}
@@ -61,7 +62,7 @@ export default function JobDetail({ job, onEdit, onBack }: JobDetailProps) {
           <p style={{ color: "#b0aac0", margin: "6px 0 0", fontSize: 15 }}>
             {job.company}
             {job.location && ` · ${job.location}`}
-            {job.job_type && ` · ${job.job_type}`}
+            {job.jobType && ` · ${job.jobType}`}
           </p>
         </div>
 
@@ -73,10 +74,10 @@ export default function JobDetail({ job, onEdit, onBack }: JobDetailProps) {
           border: "1px solid rgba(150, 170, 220, 0.06)",
           borderRadius: "var(--radius-md)",
         }}>
-          {job.salary_range && (
+          {job.salaryRange && (
             <div>
               <div style={{ fontSize: 11, color: "#8a8498", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Salary</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginTop: 4 }}>{job.salary_range}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginTop: 4 }}>{job.salaryRange}</div>
             </div>
           )}
           {job.source && (
@@ -85,20 +86,20 @@ export default function JobDetail({ job, onEdit, onBack }: JobDetailProps) {
               <div style={{ fontSize: 15, color: "#c8c2d4", marginTop: 4, textTransform: "capitalize" }}>{job.source}</div>
             </div>
           )}
-          {job.match_score > 0 && (
+          {job.matchScore > 0 && (
             <div>
               <div style={{ fontSize: 11, color: "#8a8498", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Match</div>
               <div style={{ marginTop: 4 }}>
                 <span style={{
                   padding: "3px 10px", borderRadius: 4, fontWeight: 600, fontSize: 14,
-                  background: job.match_score >= 80 ? "rgba(110, 231, 168, 0.08)"
-                    : job.match_score >= 60 ? "rgba(129, 140, 248, 0.08)"
+                  background: job.matchScore >= 80 ? "rgba(110, 231, 168, 0.08)"
+                    : job.matchScore >= 60 ? "rgba(129, 140, 248, 0.08)"
                     : "rgba(251, 191, 88, 0.08)",
-                  color: job.match_score >= 80 ? "#6ee7a8"
-                    : job.match_score >= 60 ? "#818cf8"
+                  color: job.matchScore >= 80 ? "#6ee7a8"
+                    : job.matchScore >= 60 ? "#818cf8"
                     : "#fbbf58",
                 }}>
-                  {job.match_score}%
+                  {job.matchScore}%
                 </span>
               </div>
             </div>
@@ -106,17 +107,17 @@ export default function JobDetail({ job, onEdit, onBack }: JobDetailProps) {
           <div>
             <div style={{ fontSize: 11, color: "#8a8498", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Saved</div>
             <div style={{ fontSize: 15, color: "#c8c2d4", marginTop: 4 }}>
-              {new Date(job.created_at).toLocaleDateString()}
+              {new Date(job.createdAt).toLocaleDateString()}
             </div>
           </div>
         </div>
 
         {/* Skills */}
-        {job.required_skills && job.required_skills.length > 0 && (
+        {job.requiredSkills && job.requiredSkills.length > 0 && (
           <div style={{ marginBottom: 20 }}>
             <h3 style={{ fontSize: 13, color: "#8a8498", fontWeight: 600, marginBottom: 8 }}>Required Skills</h3>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {job.required_skills.map((skill) => (
+              {job.requiredSkills.map((skill) => (
                 <span key={skill} style={{
                   padding: "4px 12px", background: "rgba(251, 191, 88, 0.08)",
                   color: "#fbbf58", borderRadius: 20, fontSize: 13, fontWeight: 500,
@@ -149,9 +150,9 @@ export default function JobDetail({ job, onEdit, onBack }: JobDetailProps) {
 
         {/* Action links */}
         <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-          {job.apply_url && (
+          {job.applyUrl && (
             <a
-              href={job.apply_url}
+              href={job.applyUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -166,9 +167,9 @@ export default function JobDetail({ job, onEdit, onBack }: JobDetailProps) {
               Apply →
             </a>
           )}
-          {job.hiring_email && (
+          {job.hiringEmail && (
             <a
-              href={`mailto:${job.hiring_email}`}
+              href={`mailto:${job.hiringEmail}`}
               style={{
                 padding: "9px 20px",
                 background: "rgba(200, 210, 240, 0.06)",
@@ -180,6 +181,22 @@ export default function JobDetail({ job, onEdit, onBack }: JobDetailProps) {
             >
               Email Recruiter
             </a>
+          )}
+          {onCritique && (
+            <button
+              onClick={() => onCritique(job.id)}
+              style={{
+                padding: "9px 20px",
+                background: "rgba(129, 140, 248, 0.06)",
+                color: "#818cf8",
+                borderRadius: "var(--radius-sm)", fontWeight: 700, fontSize: 14,
+                border: "1px solid rgba(129, 140, 248, 0.12)",
+                cursor: "pointer", fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              📄 Critique Resume for This Role
+            </button>
           )}
         </div>
 
