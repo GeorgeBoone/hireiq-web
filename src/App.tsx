@@ -26,7 +26,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string>("");
-  const [view, setView] = useState<View>({ page: "jobs" });
+  const [view, setView] = useState<View>({ page: "discover" });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -47,10 +47,25 @@ function App() {
   async function syncWithBackend(firebaseUser: User) {
     try {
       const t = await firebaseUser.getIdToken();
-      const data = await api.syncUser(t);
-      setProfile(data);
+      // Sync user record (creates if first login)
+      await api.syncUser(t);
+      // Then fetch the full profile
+      const p = await api.getProfile(t);
+      setProfile(p);
     } catch (err: any) {
-      setError(err.message);
+      console.error("Backend sync failed:", err.message);
+      // Even if sync fails, set a minimal profile so the editor renders
+      setProfile({
+        name: firebaseUser.displayName || "",
+        email: firebaseUser.email || "",
+        bio: "",
+        location: "",
+        workStyle: "remote",
+        salaryMin: 0,
+        salaryMax: 0,
+        skills: [],
+        githubUrl: "",
+      });
     }
   }
 
@@ -295,8 +310,10 @@ function App() {
         {view.page === "job-detail" && (
           <JobDetail
             job={view.job}
+            token={token}
             onEdit={() => setView({ page: "job-edit", job: view.job })}
             onBack={() => setView({ page: "jobs" })}
+            onBackToDiscover={() => setView({ page: "discover" })}
             onCritique={(jobId) => setView({ page: "resume", preselectedJobId: jobId })}
           />
         )}
@@ -340,10 +357,10 @@ function ProfileEditor({
     name: profile.name || "",
     bio: profile.bio || "",
     location: profile.location || "",
-    work_style: profile.work_style || "remote",
-    salary_min: profile.salary_min || 0,
-    salary_max: profile.salary_max || 0,
-    github_url: profile.github_url || "",
+    workStyle: profile.workStyle || profile.work_style || "remote",
+    salaryMin: profile.salaryMin || profile.salary_min || 0,
+    salaryMax: profile.salaryMax || profile.salary_max || 0,
+    githubUrl: profile.githubUrl || profile.github_url || "",
   });
   const [saved, setSaved] = useState(false);
   const [skillInput, setSkillInput] = useState("");
@@ -430,7 +447,7 @@ function ProfileEditor({
             </div>
             <div>
               <label style={labelStyle}>Work Style</label>
-              <select value={form.work_style} onChange={(e) => setForm({ ...form, work_style: e.target.value })}>
+              <select value={form.workStyle} onChange={(e) => setForm({ ...form, workStyle: e.target.value })}>
                 <option value="remote">Remote</option>
                 <option value="hybrid">Hybrid</option>
                 <option value="onsite">On-site</option>
@@ -441,17 +458,17 @@ function ProfileEditor({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
               <label style={labelStyle}>Salary Min ($)</label>
-              <input type="number" value={form.salary_min} onChange={(e) => setForm({ ...form, salary_min: parseInt(e.target.value) || 0 })} />
+              <input type="number" value={form.salaryMin} onChange={(e) => setForm({ ...form, salaryMin: parseInt(e.target.value) || 0 })} />
             </div>
             <div>
               <label style={labelStyle}>Salary Max ($)</label>
-              <input type="number" value={form.salary_max} onChange={(e) => setForm({ ...form, salary_max: parseInt(e.target.value) || 0 })} />
+              <input type="number" value={form.salaryMax} onChange={(e) => setForm({ ...form, salaryMax: parseInt(e.target.value) || 0 })} />
             </div>
           </div>
 
           <div>
             <label style={labelStyle}>GitHub URL</label>
-            <input value={form.github_url} onChange={(e) => setForm({ ...form, github_url: e.target.value })} placeholder="https://github.com/username" />
+            <input value={form.githubUrl} onChange={(e) => setForm({ ...form, githubUrl: e.target.value })} placeholder="https://github.com/username" />
           </div>
 
           <div>
