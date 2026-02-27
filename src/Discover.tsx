@@ -1,13 +1,14 @@
 // src/Discover.tsx
 import { useState, useEffect, useCallback } from "react";
-import type { FeedJob } from "./api";
+import type { FeedJob, Job } from "./api";
 import { getFeed, refreshFeed, dismissFeedJob, saveFeedJob } from "./api";
 
 interface DiscoverProps {
   token: string;
+  onSelectJob: (job: Job) => void;
 }
 
-export default function Discover({ token }: DiscoverProps) {
+export default function Discover({ token, onSelectJob }: DiscoverProps) {
   const [jobs, setJobs] = useState<FeedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,8 +59,8 @@ export default function Discover({ token }: DiscoverProps) {
   const handleSave = async (id: string) => {
     try {
       setSavingId(id);
-      await saveFeedJob(token, id);
-      setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, saved: true } : j)));
+      const savedJob = await saveFeedJob(token, id);
+      setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, saved: true, savedJobId: savedJob?.id } : j)));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -206,8 +207,42 @@ export default function Discover({ token }: DiscoverProps) {
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", margin: 0, lineHeight: 1.3 }}>
+                  <h3
+                    onClick={() => {
+                      if (job.saved && job.savedJobId) {
+                        // Navigate to the saved job detail
+                        onSelectJob({
+                          id: job.savedJobId,
+                          title: job.title,
+                          company: job.company,
+                          location: job.location,
+                          salaryRange: job.salaryText,
+                          jobType: job.jobType,
+                          description: job.description,
+                          applyUrl: job.applyUrl,
+                          requiredSkills: job.requiredSkills,
+                          matchScore: job.matchScore,
+                          source: job.source,
+                          companyLogo: job.companyLogo,
+                          bookmarked: false,
+                          status: "saved",
+                          tags: [],
+                          hiringEmail: "",
+                          createdAt: job.fetchedAt,
+                        } as any);
+                      }
+                    }}
+                    style={{
+                      fontSize: 15, fontWeight: 600, color: "var(--text-primary)", margin: 0, lineHeight: 1.3,
+                      cursor: job.saved ? "pointer" : "default",
+                      transition: "color 0.2s",
+                      ...(job.saved ? { textDecoration: "none" } : {}),
+                    }}
+                    onMouseEnter={(e) => { if (job.saved) (e.currentTarget as HTMLElement).style.color = "#a5b4fc"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
+                  >
                     {job.title}
+                    {job.saved && <span style={{ fontSize: 11, color: "#6e6a80", marginLeft: 8, fontWeight: 400 }}>View →</span>}
                   </h3>
                   <div style={{ color: "var(--text-secondary)", fontSize: 14, marginTop: 2 }}>
                     {job.company}

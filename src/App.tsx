@@ -10,7 +10,6 @@ import JobForm from "./JobForm";
 import JobDetail from "./JobDetail";
 import Discover from "./Discover";
 
-
 type View =
   | { page: "jobs" }
   | { page: "discover" }
@@ -280,7 +279,7 @@ function App() {
           />
         )}
 
-        {view.page === "discover" && <Discover token={token} />}
+        {view.page === "discover" && <Discover token={token} onSelectJob={(job) => setView({ page: "job-detail", job })} />}
 
         {view.page === "job-detail" && (
           <JobDetail
