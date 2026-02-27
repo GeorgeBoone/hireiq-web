@@ -200,3 +200,90 @@ export const aiFix = (
     method: "POST",
     body: JSON.stringify({ resumeText, issue, jobId }),
   });
+
+// ─── Company Intel ─────────────────────────────────
+export interface CompanyProfile {
+  industry: string;
+  sector: string;
+  fullTimeEmployees: number;
+  website: string;
+  city: string;
+  country: string;
+  summary: string;
+  founded: number;
+}
+
+export interface CompanyFinance {
+  marketCap: number;
+  marketCapFmt: string;
+  enterpriseValue: number;
+  enterpriseValueFmt: string;
+  totalRevenue: number;
+  totalRevenueFmt: string;
+  revenueGrowth: number;
+  grossMargins: number;
+  operatingMargins: number;
+  profitMargins: number;
+  trailingPE: number;
+  forwardPE: number;
+  currentPrice: number;
+  targetMeanPrice: number;
+  dividendYield: number;
+  debtToEquity: number;
+  freeCashflow: number;
+  freeCashflowFmt: string;
+}
+
+export interface CompanyRatings {
+  overallRisk: number;
+  auditRisk: number;
+  boardRisk: number;
+  compensationRisk: number;
+  shareholderRisk: number;
+  recommendationMean: number;
+  recommendationKey: string;
+  numberOfAnalysts: number;
+  targetHighPrice: number;
+  targetLowPrice: number;
+  // AI-estimated Glassdoor-style (private companies)
+  glassdoorRating?: number;
+  glassdoorCulture?: number;
+  glassdoorCompensation?: number;
+  glassdoorWorkLifeBalance?: number;
+  glassdoorCareerGrowth?: number;
+}
+
+export interface QuarterData {
+  quarter: string;
+  revenue: number;
+  earnings: number;
+}
+
+export interface CompanyOfficer {
+  name: string;
+  title: string;
+  age?: number;
+}
+
+export interface CompanyIntel {
+  company: string;
+  ticker?: string;
+  isPublic: boolean;
+  source: "yahoo_finance" | "ai_estimated";
+  fetchedAt: string;
+  profile: CompanyProfile;
+  financials: CompanyFinance;
+  ratings: CompanyRatings;
+  earnings: QuarterData[];
+  officers: CompanyOfficer[];
+}
+
+export const getCompanyIntel = (
+  token: string,
+  company: string,
+  ticker?: string
+): Promise<CompanyIntel> => {
+  const params = new URLSearchParams({ company });
+  if (ticker) params.set("ticker", ticker);
+  return apiFetch(`/company/intel?${params.toString()}`, token);
+};
