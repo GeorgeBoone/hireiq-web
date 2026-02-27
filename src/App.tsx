@@ -8,27 +8,25 @@ import type { Job } from "./api";
 import JobList from "./JobList";
 import JobForm from "./JobForm";
 import JobDetail from "./JobDetail";
+import Discover from "./Discover";
 
-// ── View types for simple client-side navigation ──────
+
 type View =
   | { page: "jobs" }
+  | { page: "discover" }
   | { page: "job-detail"; job: Job }
   | { page: "job-add" }
   | { page: "job-edit"; job: Job }
   | { page: "profile" };
 
 function App() {
-  // Auth state
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string>("");
-
-  // Navigation state
   const [view, setView] = useState<View>({ page: "jobs" });
 
-  // ── Auth listener ────────────────────────────────────
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
@@ -69,151 +67,255 @@ function App() {
     setView({ page: "jobs" });
   }
 
-  // ── Loading state ────────────────────────────────────
+  // ── Loading ──────────────────────────────────────────
   if (loading) {
     return (
-      <div style={{ textAlign: "center", marginTop: 100 }}>
-        <p>Loading...</p>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        minHeight: "100vh",
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12,
+            background: "linear-gradient(135deg, #818cf8, #4f46e5)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "white", fontWeight: 800, fontSize: 20, margin: "0 auto 12px",
+            boxShadow: "0 2px 20px rgba(129, 140, 248, 0.3)",
+          }}>
+            H
+          </div>
+          <div style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading...</div>
+        </div>
       </div>
     );
   }
 
-  // ── Not signed in ────────────────────────────────────
+  // ── Sign In ──────────────────────────────────────────
   if (!user) {
     return (
-      <div style={{ textAlign: "center", marginTop: 100 }}>
-        <h1>HireIQ</h1>
-        <p style={{ color: "#6b7280" }}>Your AI-powered job search companion</p>
-        <button
-          onClick={handleSignIn}
-          style={{
-            marginTop: 20,
-            padding: "12px 24px",
-            fontSize: 16,
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: 8,
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          Sign in with Google
-        </button>
-        {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        minHeight: "100vh",
+      }}>
+        <div style={{
+          textAlign: "center",
+          background: "var(--glass-bg)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          padding: "52px 60px",
+          borderRadius: "var(--radius-lg)",
+          border: "1px solid var(--glass-border)",
+          boxShadow: "var(--shadow-lg)",
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 14,
+            background: "linear-gradient(135deg, #818cf8, #4f46e5)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "white", fontWeight: 800, fontSize: 24, margin: "0 auto 16px",
+            boxShadow: "0 4px 24px rgba(129, 140, 248, 0.3)",
+          }}>
+            H
+          </div>
+          <div style={{
+            fontSize: 28, fontWeight: 800, color: "var(--text-primary)",
+            marginBottom: 4, letterSpacing: "-0.5px",
+          }}>
+            HireIQ
+          </div>
+          <p style={{ color: "var(--text-muted)", fontSize: 15, marginBottom: 32 }}>
+            Your AI-powered job search companion
+          </p>
+          <button
+            onClick={handleSignIn}
+            style={{
+              padding: "12px 36px",
+              fontSize: 15,
+              background: "linear-gradient(135deg, #818cf8, #6366f1)",
+              color: "white",
+              border: "none",
+              borderRadius: "var(--radius-sm)",
+              fontWeight: 700,
+              boxShadow: "0 2px 16px rgba(129, 140, 248, 0.25)",
+              letterSpacing: "-0.2px",
+            }}
+          >
+            Sign in with Google
+          </button>
+          {error && <p style={{ color: "var(--danger)", marginTop: 16, fontSize: 13 }}>{error}</p>}
+        </div>
       </div>
     );
   }
 
-  // ── Signed in ────────────────────────────────────────
+  // ── Tab styling ─────────────────────────────────────
+  const isActive = (check: string) => {
+    if (check === "tracker") return view.page.startsWith("job");
+    return view.page === check;
+  };
+
+  const tabStyle = (check: string): React.CSSProperties => ({
+    padding: "7px 20px",
+    fontSize: 13,
+    fontWeight: 600,
+    color: isActive(check) ? "var(--accent)" : "var(--text-muted)",
+    background: isActive(check) ? "var(--accent-light)" : "transparent",
+    border: isActive(check) ? "1px solid rgba(129, 140, 248, 0.1)" : "1px solid transparent",
+    borderRadius: "var(--radius-sm)",
+    fontFamily: "inherit",
+    transition: "all 0.2s",
+    cursor: "pointer",
+  });
+
+  // ── Main App ─────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 700, margin: "0 auto", padding: 20 }}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 24,
-          paddingBottom: 16,
-          borderBottom: "1px solid #e5e7eb",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 22 }}>HireIQ</h1>
-          {/* Tab navigation */}
-          <nav style={{ display: "flex", gap: 4 }}>
-            <button
+    <div style={{ minHeight: "100vh" }}>
+      {/* ── Glassmorphism Nav ────────────────────── */}
+      <nav style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 100,
+        backdropFilter: "blur(28px) saturate(150%)",
+        WebkitBackdropFilter: "blur(28px) saturate(150%)",
+        background: "var(--bg-nav)",
+        borderBottom: "1px solid var(--glass-border)",
+        height: "var(--nav-height)",
+        display: "flex",
+        alignItems: "center",
+        padding: "0 32px",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          width: "100%", maxWidth: "var(--content-max)", margin: "0 auto",
+        }}>
+          {/* Left: Logo + Tabs */}
+          <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+            <div
               onClick={() => setView({ page: "jobs" })}
-              style={{
-                padding: "6px 12px",
-                background: view.page.startsWith("job") ? "#eff6ff" : "transparent",
-                color: view.page.startsWith("job") ? "#2563eb" : "#6b7280",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontWeight: view.page.startsWith("job") ? 600 : 400,
-              }}
+              style={{ display: "flex", alignItems: "center", gap: 11, cursor: "pointer" }}
             >
-              Jobs
-            </button>
+              <div style={{
+                width: 33, height: 33, borderRadius: 9,
+                background: "linear-gradient(135deg, #818cf8, #4f46e5)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "white", fontWeight: 800, fontSize: 15,
+                boxShadow: "0 2px 16px rgba(129, 140, 248, 0.2), 0 0 40px rgba(99, 102, 241, 0.08)",
+              }}>
+                H
+              </div>
+              <span style={{
+                fontSize: 18, fontWeight: 800, color: "var(--text-primary)",
+                letterSpacing: "-0.3px",
+              }}>
+                HireIQ
+              </span>
+            </div>
+
+            <div style={{
+              display: "flex", gap: 2,
+              background: "rgba(200, 210, 240, 0.03)",
+              border: "1px solid var(--glass-border)",
+              borderRadius: 10, padding: 3,
+            }}>
+              <button onClick={() => setView({ page: "discover" })} style={tabStyle("discover")}>Discover</button>
+              <button onClick={() => setView({ page: "jobs" })} style={tabStyle("tracker")}>Tracker</button>
+              <button onClick={() => setView({ page: "profile" })} style={tabStyle("profile")}>Profile</button>
+            </div>
+          </div>
+
+          {/* Right: User */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
+              {user.displayName}
+            </span>
+            {user.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt=""
+                style={{
+                  width: 34, height: 34, borderRadius: "50%",
+                  border: "1px solid var(--glass-border)",
+                }}
+              />
+            ) : (
+              <div style={{
+                width: 34, height: 34, borderRadius: "50%",
+                background: "var(--accent-medium)",
+                border: "1px solid rgba(129, 140, 248, 0.12)",
+                color: "var(--accent)", display: "flex", alignItems: "center",
+                justifyContent: "center", fontWeight: 700, fontSize: 12,
+              }}>
+                {user.displayName?.[0] || "?"}
+              </div>
+            )}
             <button
-              onClick={() => setView({ page: "profile" })}
+              onClick={handleSignOut}
               style={{
-                padding: "6px 12px",
-                background: view.page === "profile" ? "#eff6ff" : "transparent",
-                color: view.page === "profile" ? "#2563eb" : "#6b7280",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontWeight: view.page === "profile" ? 600 : 400,
+                padding: "5px 14px",
+                background: "transparent",
+                border: "1px solid var(--glass-border)",
+                borderRadius: "var(--radius-sm)",
+                fontSize: 13,
+                color: "var(--text-muted)",
+                fontWeight: 500,
+                fontFamily: "inherit",
               }}
             >
-              Profile
+              Sign Out
             </button>
-          </nav>
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 13, color: "#6b7280" }}>{user.displayName}</span>
-          <button
-            onClick={handleSignOut}
-            style={{
-              padding: "4px 12px",
-              background: "none",
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontSize: 13,
-              color: "#6b7280",
-            }}
-          >
-            Sign Out
-          </button>
-        </div>
-      </div>
+      </nav>
 
-      {/* Main content area */}
-      {view.page === "jobs" && (
-        <JobList
-          token={token}
-          onSelectJob={(job) => setView({ page: "job-detail", job })}
-          onAddJob={() => setView({ page: "job-add" })}
-        />
-      )}
+      {/* ── Main Content ─────────────────────────── */}
+      <main style={{
+        maxWidth: "var(--content-max)",
+        margin: "0 auto",
+        padding: "28px 32px",
+      }}>
+        {view.page === "jobs" && (
+          <JobList
+            token={token}
+            onSelectJob={(job) => setView({ page: "job-detail", job })}
+            onAddJob={() => setView({ page: "job-add" })}
+          />
+        )}
 
-      {view.page === "job-detail" && (
-        <JobDetail
-          job={view.job}
-          onEdit={() => setView({ page: "job-edit", job: view.job })}
-          onBack={() => setView({ page: "jobs" })}
-        />
-      )}
+        {view.page === "discover" && <Discover token={token} />}
 
-      {view.page === "job-add" && (
-        <JobForm
-          token={token}
-          onSaved={() => setView({ page: "jobs" })}
-          onCancel={() => setView({ page: "jobs" })}
-        />
-      )}
+        {view.page === "job-detail" && (
+          <JobDetail
+            job={view.job}
+            onEdit={() => setView({ page: "job-edit", job: view.job })}
+            onBack={() => setView({ page: "jobs" })}
+          />
+        )}
 
-      {view.page === "job-edit" && (
-        <JobForm
-          token={token}
-          existingJob={view.job}
-          onSaved={(updated) => setView({ page: "job-detail", job: updated })}
-          onCancel={() => setView({ page: "job-detail", job: view.job })}
-        />
-      )}
+        {view.page === "job-add" && (
+          <JobForm
+            token={token}
+            onSaved={() => setView({ page: "jobs" })}
+            onCancel={() => setView({ page: "jobs" })}
+          />
+        )}
 
-      {view.page === "profile" && profile && (
-        <ProfileEditor profile={profile} setProfile={setProfile} token={token} />
-      )}
+        {view.page === "job-edit" && (
+          <JobForm
+            token={token}
+            existingJob={view.job}
+            onSaved={(updated) => setView({ page: "job-detail", job: updated })}
+            onCancel={() => setView({ page: "job-detail", job: view.job })}
+          />
+        )}
+
+        {view.page === "profile" && profile && (
+          <ProfileEditor profile={profile} setProfile={setProfile} token={token} />
+        )}
+      </main>
     </div>
   );
 }
 
-// ── Profile Editor (same as before) ────────────────────
+// ── Profile Editor ─────────────────────────────────────
 function ProfileEditor({
   profile,
   setProfile,
@@ -235,13 +337,9 @@ function ProfileEditor({
   const [saved, setSaved] = useState(false);
   const [skillInput, setSkillInput] = useState("");
 
-  const inputStyle = {
-    width: "100%",
-    padding: "8px 12px",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    fontSize: 14,
-    boxSizing: "border-box" as const,
+  const labelStyle: React.CSSProperties = {
+    fontWeight: 600, fontSize: 13, color: "var(--text-secondary)",
+    marginBottom: 4, display: "block",
   };
 
   async function saveProfile() {
@@ -278,117 +376,115 @@ function ProfileEditor({
   }
 
   return (
-    <div>
-      <h2>Profile</h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div>
-          <label style={{ fontWeight: 600, fontSize: 13 }}>Name</label>
-          <input style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        </div>
-        <div>
-          <label style={{ fontWeight: 600, fontSize: 13 }}>Bio</label>
-          <textarea
-            style={{ ...inputStyle, minHeight: 60 }}
-            value={form.bio}
-            onChange={(e) => setForm({ ...form, bio: e.target.value })}
-          />
-        </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontWeight: 600, fontSize: 13 }}>Location</label>
-            <input
-              style={inputStyle}
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
+    <div style={{ maxWidth: "var(--content-narrow)", margin: "0 auto" }}>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)" }}>Profile</h1>
+        <p style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 4 }}>
+          Your skills and preferences power the job matching engine
+        </p>
+      </div>
+
+      <div style={{
+        background: "var(--glass-bg)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid var(--glass-border)",
+        padding: 32,
+        boxShadow: "var(--shadow-sm)",
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div>
+            <label style={labelStyle}>Name</label>
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Bio</label>
+            <textarea
+              style={{ minHeight: 80, resize: "vertical" }}
+              value={form.bio}
+              onChange={(e) => setForm({ ...form, bio: e.target.value })}
             />
           </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontWeight: 600, fontSize: 13 }}>Work Style</label>
-            <select
-              style={inputStyle}
-              value={form.work_style}
-              onChange={(e) => setForm({ ...form, work_style: e.target.value })}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Location</label>
+              <input
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                placeholder="e.g. Tampa, FL"
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Work Style</label>
+              <select value={form.work_style} onChange={(e) => setForm({ ...form, work_style: e.target.value })}>
+                <option value="remote">Remote</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="onsite">On-site</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Salary Min ($)</label>
+              <input type="number" value={form.salary_min} onChange={(e) => setForm({ ...form, salary_min: parseInt(e.target.value) || 0 })} />
+            </div>
+            <div>
+              <label style={labelStyle}>Salary Max ($)</label>
+              <input type="number" value={form.salary_max} onChange={(e) => setForm({ ...form, salary_max: parseInt(e.target.value) || 0 })} />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>GitHub URL</label>
+            <input value={form.github_url} onChange={(e) => setForm({ ...form, github_url: e.target.value })} placeholder="https://github.com/username" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Skills</label>
+            <input
+              value={skillInput}
+              onChange={(e) => setSkillInput(e.target.value)}
+              onKeyDown={addSkill}
+              placeholder="Type a skill and press Enter"
+            />
+            <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {(profile.skills || []).map((s: string) => (
+                <span
+                  key={s}
+                  onClick={() => removeSkill(s)}
+                  style={{
+                    cursor: "pointer", padding: "4px 12px",
+                    background: "var(--accent-light)", color: "var(--accent-text)",
+                    borderRadius: 20, fontSize: 13, fontWeight: 500,
+                    border: "1px solid rgba(129, 140, 248, 0.1)",
+                  }}
+                >
+                  {s} ×
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 8 }}>
+            <button
+              onClick={saveProfile}
+              style={{
+                padding: "10px 28px",
+                background: "linear-gradient(135deg, #818cf8, #6366f1)",
+                color: "white", border: "none",
+                borderRadius: "var(--radius-sm)", fontWeight: 700, fontSize: 14,
+                boxShadow: "0 2px 16px rgba(129, 140, 248, 0.2)",
+                fontFamily: "inherit",
+              }}
             >
-              <option value="remote">Remote</option>
-              <option value="hybrid">Hybrid</option>
-              <option value="onsite">On-site</option>
-            </select>
+              Save Profile
+            </button>
+            {saved && <span style={{ color: "var(--success)", fontWeight: 500, fontSize: 14 }}>✓ Saved</span>}
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontWeight: 600, fontSize: 13 }}>Salary Min</label>
-            <input
-              style={inputStyle}
-              type="number"
-              value={form.salary_min}
-              onChange={(e) => setForm({ ...form, salary_min: parseInt(e.target.value) || 0 })}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontWeight: 600, fontSize: 13 }}>Salary Max</label>
-            <input
-              style={inputStyle}
-              type="number"
-              value={form.salary_max}
-              onChange={(e) => setForm({ ...form, salary_max: parseInt(e.target.value) || 0 })}
-            />
-          </div>
-        </div>
-        <div>
-          <label style={{ fontWeight: 600, fontSize: 13 }}>GitHub URL</label>
-          <input
-            style={inputStyle}
-            value={form.github_url}
-            onChange={(e) => setForm({ ...form, github_url: e.target.value })}
-          />
-        </div>
-
-        {/* Skills */}
-        <div>
-          <label style={{ fontWeight: 600, fontSize: 13 }}>Skills</label>
-          <input
-            style={inputStyle}
-            value={skillInput}
-            onChange={(e) => setSkillInput(e.target.value)}
-            onKeyDown={addSkill}
-            placeholder="Type a skill and press Enter"
-          />
-          <div style={{ marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }}>
-            {(profile.skills || []).map((s: string) => (
-              <span
-                key={s}
-                onClick={() => removeSkill(s)}
-                style={{
-                  cursor: "pointer",
-                  padding: "2px 8px",
-                  background: "#e0e0e0",
-                  borderRadius: 12,
-                  fontSize: 12,
-                }}
-              >
-                {s} ×
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <button
-            onClick={saveProfile}
-            style={{
-              padding: "10px 24px",
-              background: "#2563eb",
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
-            Save Profile
-          </button>
-          {saved && <span style={{ color: "green", marginLeft: 10 }}>✓ Saved</span>}
         </div>
       </div>
     </div>

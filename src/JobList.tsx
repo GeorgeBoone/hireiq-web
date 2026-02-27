@@ -1,6 +1,5 @@
 // src/JobList.tsx
 import { useState, useEffect } from "react";
-//import { Job, getJobs, toggleBookmark, deleteJob } from "./api";
 import type { Job } from "./api";
 import { getJobs, toggleBookmark, deleteJob } from "./api";
 import KanbanBoard from "./KanbanBoard";
@@ -242,12 +241,12 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filteredJobs.map((job) => {
             const statusColors: Record<string, { bg: string; text: string }> = {
-              saved: { bg: "#ede9fe", text: "#6366f1" },
-              applied: { bg: "#f3e8ff", text: "#8b5cf6" },
-              screening: { bg: "#fef3c7", text: "#d97706" },
-              interview: { bg: "#dbeafe", text: "#2563eb" },
-              offer: { bg: "#dcfce7", text: "#16a34a" },
-              rejected: { bg: "#f1f5f9", text: "#94a3b8" },
+              saved: { bg: "rgba(129,140,248,0.1)", text: "#818cf8" },
+              applied: { bg: "rgba(192,132,252,0.1)", text: "#c084fc" },
+              screening: { bg: "rgba(251,191,88,0.1)", text: "#fbbf58" },
+              interview: { bg: "rgba(96,165,250,0.1)", text: "#60a5fa" },
+              offer: { bg: "rgba(110,231,168,0.1)", text: "#6ee7a8" },
+              rejected: { bg: "rgba(110,106,128,0.1)", text: "#6e6a80" },
             };
             const st = statusColors[job.status || "saved"] || statusColors.saved;
 
@@ -257,21 +256,25 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
                 onClick={() => onSelectJob(job)}
                 style={{
                   padding: "16px 20px",
-                  background: "var(--bg-surface)",
-                  border: "1px solid var(--border-light)",
+                  background: "var(--glass-bg)",
+                  backdropFilter: "blur(16px)",
+                  WebkitBackdropFilter: "blur(16px)",
+                  border: "1px solid var(--glass-border)",
                   borderRadius: "var(--radius-md)",
                   cursor: "pointer",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "flex-start",
-                  transition: "all 0.15s",
+                  transition: "all 0.25s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                  e.currentTarget.style.boxShadow = "var(--shadow-sm)";
+                  e.currentTarget.style.borderColor = "var(--glass-border-hover)";
+                  e.currentTarget.style.background = "var(--glass-bg-hover)";
+                  e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.2)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border-light)";
+                  e.currentTarget.style.borderColor = "var(--glass-border)";
+                  e.currentTarget.style.background = "var(--glass-bg)";
                   e.currentTarget.style.boxShadow = "none";
                 }}
               >
@@ -289,10 +292,10 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
                     {job.matchScore > 0 && (
                       <span style={{
                         fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600,
-                        background: job.matchScore >= 80 ? "#dcfce7"
-                          : job.matchScore >= 60 ? "#dbeafe" : "#fef3c7",
-                        color: job.matchScore >= 80 ? "#16a34a"
-                          : job.matchScore >= 60 ? "#2563eb" : "#d97706",
+                        background: job.matchScore >= 80 ? "rgba(110,231,168,0.08)"
+                          : job.matchScore >= 60 ? "rgba(129,140,248,0.08)" : "rgba(251,191,88,0.08)",
+                        color: job.matchScore >= 80 ? "#6ee7a8"
+                          : job.matchScore >= 60 ? "#818cf8" : "#fbbf58",
                       }}>
                         {job.matchScore}% match
                       </span>

@@ -44,11 +44,7 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
     setParsing(true);
     setParseError(null);
     try {
-      //const isURL = input.startsWith("http://") || input.startsWith("https://");
-      //const payload = isURL ? { url: input } : { text: input };
-      //const result = await api.parseJobPosting(token, payload);
       const result = await api.parseJobPosting(token, input);
-
       setForm({
         title: result.title || form.title,
         company: result.company || form.company,
@@ -60,7 +56,7 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
         hiringEmail: result.hiringEmail || form.hiringEmail,
         source: result.source || form.source,
       });
-      if (result.required_skills?.length > 0) setRequiredSkills(result.required_skills);
+      if (result.requiredSkills?.length > 0) setRequiredSkills(result.requiredSkills);
       if (result.tags?.length > 0) setTags(result.tags);
       setParsed(true);
     } catch (err: any) {
@@ -113,11 +109,13 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
 
   const labelStyle: React.CSSProperties = {
     display: "block", marginBottom: 4, fontWeight: 600,
-    fontSize: 13, color: "var(--text-secondary)",
+    fontSize: 13, color: "#b0aac0",
   };
 
   const parsedHighlight: React.CSSProperties = {
-    borderColor: "#86efac", background: "#f0fdf4",
+    borderColor: "rgba(110, 231, 168, 0.3)",
+    background: "rgba(110, 231, 168, 0.05)",
+    boxShadow: "0 0 12px rgba(110, 231, 168, 0.06)",
   };
 
   return (
@@ -132,9 +130,10 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
         <button
           onClick={onCancel}
           style={{
-            background: "var(--bg-surface)", border: "1px solid var(--border-light)",
+            background: "rgba(200, 210, 240, 0.06)",
+            border: "1px solid rgba(150, 170, 220, 0.1)",
             borderRadius: "var(--radius-sm)", padding: "7px 16px", fontSize: 14,
-            color: "var(--text-secondary)", fontWeight: 500,
+            color: "#b0aac0", fontWeight: 500, fontFamily: "inherit",
           }}
         >
           ← Back
@@ -145,17 +144,20 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
       {!isEdit && (
         <div style={{
           padding: 24, marginBottom: 24,
-          background: "var(--accent-light)", border: "1px solid #bfdbfe",
+          background: "rgba(129, 140, 248, 0.06)",
+          border: "1px solid rgba(129, 140, 248, 0.14)",
           borderRadius: "var(--radius-lg)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
         }}>
-          <label style={{ ...labelStyle, color: "var(--accent-text)", fontSize: 14 }}>
+          <label style={{ ...labelStyle, color: "#a5b4fc", fontSize: 14 }}>
             Quick Add — Paste a job URL or description
           </label>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 10px" }}>
+          <p style={{ fontSize: 13, color: "#8a8498", margin: "0 0 10px" }}>
             Paste a LinkedIn, Greenhouse, or any job posting URL — or copy the full job description text.
           </p>
           <textarea
-            style={{ minHeight: 80, resize: "vertical", borderColor: "#93c5fd" }}
+            style={{ minHeight: 80, resize: "vertical", borderColor: "rgba(129, 140, 248, 0.15)" }}
             value={pasteInput}
             onChange={(e) => { setPasteInput(e.target.value); setParsed(false); setParseError(null); }}
             placeholder={"Paste a URL like https://www.linkedin.com/jobs/view/...\n\nOr paste the full job description text here"}
@@ -166,42 +168,48 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
               disabled={parsing || !pasteInput.trim()}
               style={{
                 padding: "9px 22px",
-                background: parsing ? "#93c5fd" : !pasteInput.trim() ? "var(--border-medium)" : "var(--accent)",
-                color: parsing || !pasteInput.trim() ? "var(--text-faint)" : "white",
+                background: parsing ? "rgba(129, 140, 248, 0.2)"
+                  : !pasteInput.trim() ? "rgba(200, 210, 240, 0.06)"
+                  : "linear-gradient(135deg, #818cf8, #6366f1)",
+                color: parsing || !pasteInput.trim() ? "#6e6a80" : "white",
                 border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: 14,
+                fontFamily: "inherit",
+                boxShadow: !parsing && pasteInput.trim() ? "0 2px 16px rgba(129, 140, 248, 0.2)" : "none",
               }}
             >
               {parsing ? "Parsing..." : "Parse with AI"}
             </button>
-            {parsed && <span style={{ color: "var(--success)", fontSize: 13, fontWeight: 600 }}>✓ Parsed — review below</span>}
-            {parseError && <span style={{ color: "var(--danger)", fontSize: 13 }}>{parseError}</span>}
+            {parsed && <span style={{ color: "#6ee7a8", fontSize: 13, fontWeight: 600 }}>✓ Parsed — review below</span>}
+            {parseError && <span style={{ color: "#f87171", fontSize: 13 }}>{parseError}</span>}
           </div>
         </div>
       )}
 
       {/* Divider */}
       {!isEdit && (
-        <div style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 13, marginBottom: 20, position: "relative" }}>
+        <div style={{ textAlign: "center", color: "#6e6a80", fontSize: 13, marginBottom: 20, position: "relative" }}>
           <span style={{ background: "var(--bg-body)", padding: "0 14px", position: "relative", zIndex: 1 }}>
             {parsed ? "Review & edit parsed fields" : "Or enter details manually"}
           </span>
-          <div style={{ position: "absolute", top: "50%", left: 0, right: 0, borderTop: "1px solid var(--border-light)", zIndex: 0 }} />
+          <div style={{ position: "absolute", top: "50%", left: 0, right: 0, borderTop: "1px solid rgba(150, 170, 220, 0.08)", zIndex: 0 }} />
         </div>
       )}
 
       {/* Main form card */}
       <div style={{
-        background: "var(--bg-surface)",
+        background: "rgba(200, 210, 240, 0.07)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
         borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--border-light)",
+        border: "1px solid rgba(150, 170, 220, 0.12)",
         padding: 32,
         boxShadow: "var(--shadow-sm)",
       }}>
         {error && (
           <div style={{
-            padding: "12px 16px", background: "var(--danger-light)",
-            border: "1px solid #fecaca", borderRadius: "var(--radius-sm)",
-            color: "var(--danger)", fontSize: 14, marginBottom: 20,
+            padding: "12px 16px", background: "rgba(248, 113, 113, 0.06)",
+            border: "1px solid rgba(248, 113, 113, 0.15)", borderRadius: "var(--radius-sm)",
+            color: "#f87171", fontSize: 14, marginBottom: 20,
           }}>
             {error}
           </div>
@@ -301,8 +309,9 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
                 {tags.map((tag) => (
                   <span key={tag} onClick={() => setTags(tags.filter((t) => t !== tag))} style={{
                     cursor: "pointer", padding: "4px 12px",
-                    background: "var(--accent-light)", color: "var(--accent-text)",
+                    background: "rgba(129, 140, 248, 0.08)", color: "#a5b4fc",
                     borderRadius: 20, fontSize: 13, fontWeight: 500,
+                    border: "1px solid rgba(129, 140, 248, 0.1)",
                   }}>
                     {tag} ×
                   </span>
@@ -323,8 +332,9 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
                 {requiredSkills.map((skill) => (
                   <span key={skill} onClick={() => setRequiredSkills(requiredSkills.filter((s) => s !== skill))} style={{
                     cursor: "pointer", padding: "4px 12px",
-                    background: "var(--warning-light)", color: "var(--warning)",
+                    background: "rgba(251, 191, 88, 0.08)", color: "#fbbf58",
                     borderRadius: 20, fontSize: 13, fontWeight: 500,
+                    border: "1px solid rgba(251, 191, 88, 0.1)",
                   }}>
                     {skill} ×
                   </span>
@@ -358,9 +368,12 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
               disabled={saving}
               style={{
                 padding: "10px 28px",
-                background: saving ? "#93c5fd" : "var(--accent)",
-                color: "white", border: "none",
-                borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: 14,
+                background: saving ? "rgba(129, 140, 248, 0.2)" : "linear-gradient(135deg, #818cf8, #6366f1)",
+                color: saving ? "#6e6a80" : "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)", fontWeight: 700, fontSize: 14,
+                fontFamily: "inherit",
+                boxShadow: saving ? "none" : "0 2px 16px rgba(129, 140, 248, 0.2)",
               }}
             >
               {saving ? "Saving..." : isEdit ? "Update Job" : "Save Job"}
@@ -368,9 +381,12 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
             <button
               onClick={onCancel}
               style={{
-                padding: "10px 24px", background: "var(--bg-surface)",
-                color: "var(--text-secondary)", border: "1px solid var(--border-light)",
+                padding: "10px 24px",
+                background: "rgba(200, 210, 240, 0.06)",
+                color: "#b0aac0",
+                border: "1px solid rgba(150, 170, 220, 0.1)",
                 borderRadius: "var(--radius-sm)", fontSize: 14,
+                fontFamily: "inherit",
               }}
             >
               Cancel

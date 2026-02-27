@@ -2,7 +2,6 @@
 // Kanban board view for job tracker with drag-and-drop status management
 
 import { useState, useRef, useCallback } from "react";
-//import { Job, updateJobStatus } from "./api";
 import type { Job } from "./api";
 import { updateJobStatus } from "./api";
 
@@ -14,12 +13,12 @@ interface KanbanBoardProps {
 }
 
 const COLUMNS = [
-  { id: "saved", label: "Saved", emoji: "📋", color: "#6366f1" },
-  { id: "applied", label: "Applied", emoji: "📨", color: "#8b5cf6" },
-  { id: "screening", label: "Screening", emoji: "📞", color: "#d97706" },
-  { id: "interview", label: "Interview", emoji: "🎯", color: "#2563eb" },
-  { id: "offer", label: "Offer", emoji: "🎉", color: "#16a34a" },
-  { id: "rejected", label: "Rejected", emoji: "✗", color: "#94a3b8" },
+  { id: "saved", label: "Saved", emoji: "📋", color: "#818cf8" },
+  { id: "applied", label: "Applied", emoji: "📨", color: "#c084fc" },
+  { id: "screening", label: "Screening", emoji: "📞", color: "#fbbf58" },
+  { id: "interview", label: "Interview", emoji: "🎯", color: "#60a5fa" },
+  { id: "offer", label: "Offer", emoji: "🎉", color: "#6ee7a8" },
+  { id: "rejected", label: "Rejected", emoji: "✗", color: "#6e6a80" },
 ];
 
 export default function KanbanBoard({ jobs, token, onJobClick, onStatusChange }: KanbanBoardProps) {
@@ -149,12 +148,14 @@ export default function KanbanBoard({ jobs, token, onJobClick, onStatusChange }:
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col.id)}
               style={{
-                background: isOver ? `${col.color}08` : "var(--bg-inset)",
-                borderRadius: "var(--radius-md)",
-                border: isOver ? `2px dashed ${col.color}` : "2px solid transparent",
-                padding: 10,
+                background: isOver ? "var(--glass-bg-hover)" : "var(--glass-bg)",
+                backdropFilter: "blur(var(--glass-blur))",
+                WebkitBackdropFilter: "blur(var(--glass-blur))",
+                borderRadius: "var(--radius-lg)",
+                border: isOver ? `2px dashed ${col.color}` : "1px solid var(--glass-border)",
+                padding: 12,
                 minWidth: 170,
-                transition: "all 0.2s ease",
+                transition: "all 0.25s ease",
                 display: "flex",
                 flexDirection: "column",
               }}
@@ -194,23 +195,29 @@ export default function KanbanBoard({ jobs, token, onJobClick, onStatusChange }:
                     onDragEnd={handleDragEnd}
                     onClick={() => onJobClick(job)}
                     style={{
-                      background: "var(--bg-surface)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-sm)",
+                      background: "var(--glass-bg)",
+                      backdropFilter: "blur(16px)",
+                      WebkitBackdropFilter: "blur(16px)",
+                      border: "1px solid var(--glass-border)",
+                      borderRadius: "var(--radius-md)",
                       padding: "12px 14px",
                       cursor: updatingId === job.id ? "wait" : "grab",
-                      transition: "all 0.15s ease",
+                      transition: "all 0.25s ease",
                       opacity: updatingId === job.id ? 0.5 : draggedJob?.id === job.id ? 0.4 : 1,
                       borderLeft: `3px solid ${col.color}`,
                       position: "relative",
                     }}
                     onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.boxShadow = "var(--shadow-sm)";
-                      (e.currentTarget as HTMLElement).style.borderColor = col.color;
+                      (e.currentTarget as HTMLElement).style.boxShadow = "0 8px 32px rgba(0,0,0,0.3)";
+                      (e.currentTarget as HTMLElement).style.background = "var(--glass-bg-hover)";
+                      (e.currentTarget as HTMLElement).style.borderColor = "var(--glass-border-hover)";
+                      (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
                     }}
                     onMouseLeave={(e) => {
                       (e.currentTarget as HTMLElement).style.boxShadow = "none";
-                      (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+                      (e.currentTarget as HTMLElement).style.background = "var(--glass-bg)";
+                      (e.currentTarget as HTMLElement).style.borderColor = "var(--glass-border)";
+                      (e.currentTarget as HTMLElement).style.transform = "none";
                     }}
                   >
                     {/* Company + logo */}
@@ -228,9 +235,9 @@ export default function KanbanBoard({ jobs, token, onJobClick, onStatusChange }:
                       ) : (
                         <div style={{
                           width: 20, height: 20, borderRadius: 4,
-                          background: job.companyColor || "#e0e7ff",
+                          background: job.companyColor || "rgba(129, 140, 248, 0.12)",
                           display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 10, fontWeight: 700, color: "#4f46e5",
+                          fontSize: 10, fontWeight: 700, color: "#818cf8",
                         }}>
                           {job.company?.[0] || "?"}
                         </div>
@@ -263,12 +270,12 @@ export default function KanbanBoard({ jobs, token, onJobClick, onStatusChange }:
                         <span style={{
                           fontSize: 10, fontWeight: 700, padding: "2px 6px",
                           borderRadius: 4,
-                          background: job.matchScore >= 80 ? "#dcfce7"
-                            : job.matchScore >= 60 ? "#dbeafe"
-                            : job.matchScore >= 40 ? "#fef3c7" : "#f1f5f9",
-                          color: job.matchScore >= 80 ? "#16a34a"
-                            : job.matchScore >= 60 ? "#2563eb"
-                            : job.matchScore >= 40 ? "#d97706" : "#94a3b8",
+                          background: job.matchScore >= 80 ? "rgba(110, 231, 168, 0.08)"
+                            : job.matchScore >= 60 ? "rgba(129, 140, 248, 0.08)"
+                            : job.matchScore >= 40 ? "rgba(251, 191, 88, 0.08)" : "rgba(110, 106, 128, 0.08)",
+                          color: job.matchScore >= 80 ? "#6ee7a8"
+                            : job.matchScore >= 60 ? "#818cf8"
+                            : job.matchScore >= 40 ? "#fbbf58" : "#6e6a80",
                         }}>
                           {job.matchScore}%
                         </span>
