@@ -164,6 +164,27 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
           return (
             <div
               key={job.id}
+              onClick={() => {
+                onSelectJob({
+                  id: job.savedJobId || job.id,
+                  title: job.title,
+                  company: job.company,
+                  location: job.location,
+                  salaryRange: job.salaryText,
+                  jobType: job.jobType,
+                  description: job.description,
+                  applyUrl: job.applyUrl,
+                  requiredSkills: job.requiredSkills,
+                  matchScore: job.matchScore,
+                  source: job.source,
+                  companyLogo: job.companyLogo,
+                  bookmarked: false,
+                  status: job.saved ? "saved" : "discovered",
+                  tags: [],
+                  hiringEmail: "",
+                  createdAt: job.fetchedAt,
+                } as any);
+              }}
               style={{
                 background: job.saved
                   ? "rgba(110, 231, 168, 0.07)"
@@ -176,6 +197,7 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
                 borderRadius: "var(--radius-md)",
                 padding: "20px 24px",
                 transition: "all 0.4s ease",
+                cursor: "pointer",
                 boxShadow: job.saved
                   ? "0 0 24px rgba(110, 231, 168, 0.06), 0 4px 16px rgba(0,0,0,0.15)"
                   : expandedId === job.id ? "var(--shadow-md)" : "none",
@@ -208,41 +230,12 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <h3
-                    onClick={() => {
-                      if (job.saved && job.savedJobId) {
-                        // Navigate to the saved job detail
-                        onSelectJob({
-                          id: job.savedJobId,
-                          title: job.title,
-                          company: job.company,
-                          location: job.location,
-                          salaryRange: job.salaryText,
-                          jobType: job.jobType,
-                          description: job.description,
-                          applyUrl: job.applyUrl,
-                          requiredSkills: job.requiredSkills,
-                          matchScore: job.matchScore,
-                          source: job.source,
-                          companyLogo: job.companyLogo,
-                          bookmarked: false,
-                          status: "saved",
-                          tags: [],
-                          hiringEmail: "",
-                          createdAt: job.fetchedAt,
-                        } as any);
-                      }
-                    }}
                     style={{
                       fontSize: 15, fontWeight: 600, color: "var(--text-primary)", margin: 0, lineHeight: 1.3,
-                      cursor: job.saved ? "pointer" : "default",
-                      transition: "color 0.2s",
-                      ...(job.saved ? { textDecoration: "none" } : {}),
                     }}
-                    onMouseEnter={(e) => { if (job.saved) (e.currentTarget as HTMLElement).style.color = "#a5b4fc"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text-primary)"; }}
                   >
                     {job.title}
-                    {job.saved && <span style={{ fontSize: 11, color: "#6e6a80", marginLeft: 8, fontWeight: 400 }}>View →</span>}
+                    {job.saved && <span style={{ fontSize: 11, color: "#6ee7a8", marginLeft: 8, fontWeight: 500 }}>✓ Saved</span>}
                   </h3>
                   <div style={{ color: "var(--text-secondary)", fontSize: 14, marginTop: 2 }}>
                     {job.company}
@@ -291,7 +284,7 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
 
               {/* Expanded description */}
               {expandedId === job.id && job.description && (
-                <div style={{
+                <div onClick={(e) => e.stopPropagation()} style={{
                   marginTop: 14, padding: 16, background: "var(--bg-inset)",
                   borderRadius: "var(--radius-sm)", fontSize: 13,
                   color: "var(--text-secondary)", lineHeight: 1.7,
@@ -302,7 +295,7 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
               )}
 
               {/* Actions */}
-              <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
                 <button
                   onClick={() => setExpandedId(expandedId === job.id ? null : job.id)}
                   style={{
