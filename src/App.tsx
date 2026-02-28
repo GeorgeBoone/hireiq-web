@@ -12,6 +12,7 @@ import Discover from "./Discover";
 import JobCompare from "./JobCompare";
 import ResumeCritique from "./ResumeCritique";
 import Network from "./Network";
+import HireIQLogo from "./HireIQLogo";
 
 type View =
   | { page: "jobs" }
@@ -95,14 +96,8 @@ function App() {
         minHeight: "100vh",
       }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 12,
-            background: "linear-gradient(135deg, #818cf8, #4f46e5)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "white", fontWeight: 800, fontSize: 20, margin: "0 auto 12px",
-            boxShadow: "0 2px 20px rgba(129, 140, 248, 0.3)",
-          }}>
-            H
+          <div style={{ margin: "0 auto 12px", width: 48 }}>
+            <HireIQLogo size={48} />
           </div>
           <div style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading...</div>
         </div>
@@ -153,26 +148,12 @@ function App() {
 
           {/* Logo */}
           <div style={{
-            width: 120,
-            height: 120,
-            borderRadius: 28,
-            background: "rgba(255, 255, 255, 0.1)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            border: "1px solid rgba(255, 255, 255, 0.12)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "white",
-            fontWeight: 800,
-            fontSize: 56,
-            letterSpacing: "-2px",
-            boxShadow: "0 8px 40px rgba(79, 70, 229, 0.3), 0 0 80px rgba(129, 140, 248, 0.15)",
             marginBottom: 32,
             position: "relative",
             zIndex: 1,
+            filter: "drop-shadow(0 8px 40px rgba(79, 70, 229, 0.35))",
           }}>
-            H
+            <HireIQLogo size={120} color="rgba(255, 255, 255, 0.85)" />
           </div>
 
           {/* Brand text */}
@@ -194,7 +175,7 @@ function App() {
             position: "relative",
             zIndex: 1,
           }}>
-            AI-Powered Job Search
+            You bring the talent. We bring the intel.
           </div>
         </div>
 
@@ -214,24 +195,10 @@ function App() {
               <div style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 12,
+                gap: 10,
                 marginBottom: 32,
               }}>
-                <div style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: "linear-gradient(135deg, #818cf8, #4f46e5)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "white",
-                  fontWeight: 800,
-                  fontSize: 17,
-                  boxShadow: "0 2px 16px rgba(129, 140, 248, 0.25)",
-                }}>
-                  H
-                </div>
+                <HireIQLogo size={36} />
                 <span style={{
                   fontSize: 20,
                   fontWeight: 800,
@@ -428,17 +395,9 @@ function App() {
           <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
             <div
               onClick={() => setView({ page: "jobs" })}
-              style={{ display: "flex", alignItems: "center", gap: 11, cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer" }}
             >
-              <div style={{
-                width: 33, height: 33, borderRadius: 9,
-                background: "linear-gradient(135deg, #818cf8, #4f46e5)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "white", fontWeight: 800, fontSize: 15,
-                boxShadow: "0 2px 16px rgba(129, 140, 248, 0.2), 0 0 40px rgba(99, 102, 241, 0.08)",
-              }}>
-                H
-              </div>
+              <HireIQLogo size={30} />
               <span style={{
                 fontSize: 18, fontWeight: 800, color: "var(--text-primary)",
                 letterSpacing: "-0.3px",
