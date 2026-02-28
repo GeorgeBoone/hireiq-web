@@ -114,54 +114,269 @@ function App() {
   if (!user) {
     return (
       <div style={{
-        display: "flex", alignItems: "center", justifyContent: "center",
+        display: "flex",
         minHeight: "100vh",
+        background: "var(--bg-deep)",
       }}>
+        {/* ── Left Panel: Brand ────────────────────── */}
         <div style={{
-          textAlign: "center",
-          background: "var(--glass-bg)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          padding: "52px 60px",
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--glass-border)",
-          boxShadow: "var(--shadow-lg)",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "linear-gradient(160deg, #1e1145 0%, #2a1463 30%, #3b1d8e 60%, #4f46e5 100%)",
+          position: "relative",
+          overflow: "hidden",
         }}>
+          {/* Ambient glow orbs */}
           <div style={{
-            width: 56, height: 56, borderRadius: 14,
-            background: "linear-gradient(135deg, #818cf8, #4f46e5)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "white", fontWeight: 800, fontSize: 24, margin: "0 auto 16px",
-            boxShadow: "0 4px 24px rgba(129, 140, 248, 0.3)",
+            position: "absolute",
+            top: "15%",
+            left: "20%",
+            width: 400,
+            height: 400,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(129, 140, 248, 0.15) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }} />
+          <div style={{
+            position: "absolute",
+            bottom: "10%",
+            right: "15%",
+            width: 300,
+            height: 300,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }} />
+
+          {/* Logo */}
+          <div style={{
+            width: 120,
+            height: 120,
+            borderRadius: 28,
+            background: "rgba(255, 255, 255, 0.1)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.12)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "white",
+            fontWeight: 800,
+            fontSize: 56,
+            letterSpacing: "-2px",
+            boxShadow: "0 8px 40px rgba(79, 70, 229, 0.3), 0 0 80px rgba(129, 140, 248, 0.15)",
+            marginBottom: 32,
+            position: "relative",
+            zIndex: 1,
           }}>
             H
           </div>
+
+          {/* Brand text */}
           <div style={{
-            fontSize: 28, fontWeight: 800, color: "var(--text-primary)",
-            marginBottom: 4, letterSpacing: "-0.5px",
+            fontSize: 36,
+            fontWeight: 800,
+            color: "white",
+            letterSpacing: "-1px",
+            marginBottom: 8,
+            position: "relative",
+            zIndex: 1,
           }}>
             HireIQ
           </div>
-          <p style={{ color: "var(--text-muted)", fontSize: 15, marginBottom: 32 }}>
-            Your AI-powered job search companion
-          </p>
-          <button
-            onClick={handleSignIn}
-            style={{
-              padding: "12px 36px",
-              fontSize: 15,
-              background: "linear-gradient(135deg, #818cf8, #6366f1)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              fontWeight: 700,
-              boxShadow: "0 2px 16px rgba(129, 140, 248, 0.25)",
-              letterSpacing: "-0.2px",
-            }}
-          >
-            Sign in with Google
-          </button>
-          {error && <p style={{ color: "var(--danger)", marginTop: 16, fontSize: 13 }}>{error}</p>}
+          <div style={{
+            fontSize: 16,
+            color: "rgba(255, 255, 255, 0.55)",
+            fontWeight: 500,
+            position: "relative",
+            zIndex: 1,
+          }}>
+            AI-Powered Job Search
+          </div>
+        </div>
+
+        {/* ── Right Panel: Sign In Form ────────────── */}
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 60px",
+          position: "relative",
+        }}>
+          <div style={{ width: "100%", maxWidth: 380 }}>
+            {/* Header */}
+            <div style={{ marginBottom: 40 }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 32,
+              }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  background: "linear-gradient(135deg, #818cf8, #4f46e5)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontWeight: 800,
+                  fontSize: 17,
+                  boxShadow: "0 2px 16px rgba(129, 140, 248, 0.25)",
+                }}>
+                  H
+                </div>
+                <span style={{
+                  fontSize: 20,
+                  fontWeight: 800,
+                  color: "var(--text-primary)",
+                  letterSpacing: "-0.3px",
+                }}>
+                  HireIQ
+                </span>
+              </div>
+
+              <h1 style={{
+                fontSize: 26,
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                marginBottom: 8,
+                letterSpacing: "-0.5px",
+              }}>
+                Welcome back
+              </h1>
+              <p style={{
+                color: "var(--text-muted)",
+                fontSize: 15,
+              }}>
+                Sign in to continue to your dashboard
+              </p>
+            </div>
+
+            {/* Google Sign In */}
+            <button
+              onClick={handleSignIn}
+              style={{
+                width: "100%",
+                padding: "13px 24px",
+                fontSize: 15,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                background: "rgba(200, 210, 240, 0.06)",
+                color: "var(--text-primary)",
+                border: "1px solid rgba(150, 170, 220, 0.12)",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                marginBottom: 20,
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A11.96 11.96 0 0 0 0 12c0 1.94.46 3.77 1.28 5.4l3.56-2.77z" transform="translate(0.84, 0)"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Continue with Google
+            </button>
+
+            {/* Divider */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              marginBottom: 20,
+            }}>
+              <div style={{ flex: 1, height: 1, background: "rgba(150, 170, 220, 0.08)" }} />
+              <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+                or
+              </span>
+              <div style={{ flex: 1, height: 1, background: "rgba(150, 170, 220, 0.08)" }} />
+            </div>
+
+            {/* Email/password fields (visual, disabled) */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+              <input
+                placeholder="Email address"
+                disabled
+                style={{
+                  opacity: 0.4,
+                  cursor: "not-allowed",
+                }}
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                disabled
+                style={{
+                  opacity: 0.4,
+                  cursor: "not-allowed",
+                }}
+              />
+              <button
+                disabled
+                style={{
+                  width: "100%",
+                  padding: "12px 24px",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  fontFamily: "inherit",
+                  background: "linear-gradient(135deg, #818cf8, #6366f1)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "var(--radius-sm)",
+                  opacity: 0.3,
+                  cursor: "not-allowed",
+                }}
+              >
+                Sign in
+              </button>
+              <p style={{
+                fontSize: 12,
+                color: "var(--text-muted)",
+                textAlign: "center",
+              }}>
+                Email sign-in coming soon
+              </p>
+            </div>
+
+            {error && (
+              <div style={{
+                padding: "10px 16px",
+                background: "rgba(248, 113, 113, 0.08)",
+                border: "1px solid rgba(248, 113, 113, 0.15)",
+                borderRadius: "var(--radius-sm)",
+                color: "var(--danger)",
+                fontSize: 13,
+                textAlign: "center",
+              }}>
+                {error}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            position: "absolute",
+            bottom: 32,
+            left: 0,
+            right: 0,
+            textAlign: "center",
+            fontSize: 12,
+            color: "var(--text-muted)",
+          }}>
+            © 2026 HireIQ. All rights reserved.
+          </div>
         </div>
       </div>
     );
