@@ -8,11 +8,12 @@ interface JobListProps {
   token: string;
   onSelectJob: (job: Job) => void;
   onAddJob: () => void;
+  onCompare?: (jobs: Job[]) => void;
 }
 
 type ViewMode = "list" | "kanban";
 
-export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) {
+export default function JobList({ token, onSelectJob, onAddJob, onCompare }: JobListProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +21,31 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
   const [locationFilter, setLocationFilter] = useState("");
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+
+  function toggleSelection(jobId: string) {
+    setSelectedJobIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobId)) {
+        next.delete(jobId);
+      } else if (next.size < 4) {
+        next.add(jobId);
+      }
+      return next;
+    });
+  }
+
+  function handleCompareClick() {
+    if (compareMode && selectedJobIds.size >= 2 && onCompare) {
+      const selectedJobs = jobs.filter((j) => selectedJobIds.has(j.id));
+      onCompare(selectedJobs);
+    } else {
+      setCompareMode(!compareMode);
+      setSelectedJobIds(new Set());
+      if (!compareMode) setViewMode("list");
+    }
+  }
 
   useEffect(() => {
     loadJobs();
@@ -147,8 +173,62 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
           >
             + Add Job
           </button>
+          {onCompare && jobs.length >= 2 && (
+            <>
+              <button
+                onClick={handleCompareClick}
+                style={{
+                  padding: "9px 20px",
+                  background: compareMode && selectedJobIds.size >= 2
+                    ? "linear-gradient(135deg, #818cf8, #6366f1)"
+                    : "rgba(200, 210, 240, 0.06)",
+                  color: compareMode && selectedJobIds.size >= 2 ? "white" : "var(--text-secondary)",
+                  border: compareMode ? "1px solid var(--accent)" : "1px solid var(--glass-border)",
+                  borderRadius: "var(--radius-sm)",
+                  fontWeight: 600, fontSize: 14, cursor: "pointer",
+                  fontFamily: "inherit",
+                  boxShadow: compareMode && selectedJobIds.size >= 2
+                    ? "0 2px 16px rgba(129, 140, 248, 0.2)" : "none",
+                }}
+              >
+                {compareMode
+                  ? selectedJobIds.size >= 2
+                    ? `Compare ${selectedJobIds.size} Jobs`
+                    : `Select jobs (${selectedJobIds.size}/2-4)`
+                  : "Compare"}
+              </button>
+              {compareMode && (
+                <button
+                  onClick={() => { setCompareMode(false); setSelectedJobIds(new Set()); }}
+                  style={{
+                    padding: "9px 14px", background: "transparent",
+                    border: "1px solid var(--glass-border)",
+                    borderRadius: "var(--radius-sm)", fontSize: 13,
+                    color: "var(--text-muted)", cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
+
+      {/* Compare mode hint */}
+      {compareMode && (
+        <div style={{
+          padding: "10px 16px", marginBottom: 16,
+          background: "rgba(129, 140, 248, 0.06)",
+          border: "1px solid rgba(129, 140, 248, 0.12)",
+          borderRadius: "var(--radius-sm)",
+          color: "var(--text-secondary)", fontSize: 13,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{ color: "#818cf8", fontWeight: 700 }}>⬡</span>
+          Click on jobs to select them for comparison (2-4 jobs). {selectedJobIds.size > 0 && `${selectedJobIds.size} selected.`}
+        </div>
+      )}
 
       {/* Filters bar — show for list view, minimal for kanban */}
       {viewMode === "list" && (
@@ -229,7 +309,7 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
             + Add Your First Job
           </button>
         </div>
-      ) : viewMode === "kanban" ? (
+      ) : viewMode === "kanban" && !compareMode ? (
         <KanbanBoard
           jobs={jobs}
           token={token}
@@ -250,16 +330,20 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
             };
             const st = statusColors[job.status || "saved"] || statusColors.saved;
 
+            const isSelected = selectedJobIds.has(job.id);
+
             return (
               <div
                 key={job.id}
-                onClick={() => onSelectJob(job)}
+                onClick={() => compareMode ? toggleSelection(job.id) : onSelectJob(job)}
                 style={{
                   padding: "16px 20px",
-                  background: "var(--glass-bg)",
+                  background: isSelected ? "rgba(129, 140, 248, 0.06)" : "var(--glass-bg)",
                   backdropFilter: "blur(16px)",
                   WebkitBackdropFilter: "blur(16px)",
-                  border: "1px solid var(--glass-border)",
+                  border: isSelected
+                    ? "1px solid rgba(129, 140, 248, 0.25)"
+                    : "1px solid var(--glass-border)",
                   borderRadius: "var(--radius-md)",
                   cursor: "pointer",
                   display: "flex",
@@ -268,16 +352,38 @@ export default function JobList({ token, onSelectJob, onAddJob }: JobListProps) 
                   transition: "all 0.25s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--glass-border-hover)";
-                  e.currentTarget.style.background = "var(--glass-bg-hover)";
+                  if (!isSelected) {
+                    e.currentTarget.style.borderColor = "var(--glass-border-hover)";
+                    e.currentTarget.style.background = "var(--glass-bg-hover)";
+                  }
                   e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.2)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--glass-border)";
-                  e.currentTarget.style.background = "var(--glass-bg)";
+                  if (!isSelected) {
+                    e.currentTarget.style.borderColor = "var(--glass-border)";
+                    e.currentTarget.style.background = "var(--glass-bg)";
+                  }
                   e.currentTarget.style.boxShadow = "none";
                 }}
               >
+                {/* Compare checkbox */}
+                {compareMode && (
+                  <div
+                    onClick={(e) => { e.stopPropagation(); toggleSelection(job.id); }}
+                    style={{
+                      width: 22, height: 22, borderRadius: 6, marginRight: 14, flexShrink: 0,
+                      marginTop: 2,
+                      border: isSelected ? "2px solid var(--accent)" : "2px solid var(--glass-border)",
+                      background: isSelected ? "var(--accent)" : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", transition: "all 0.2s",
+                    }}
+                  >
+                    {isSelected && (
+                      <span style={{ color: "white", fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✓</span>
+                    )}
+                  </div>
+                )}
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <strong style={{ fontSize: 15, color: "var(--text-primary)" }}>{job.title}</strong>

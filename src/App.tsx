@@ -9,6 +9,7 @@ import JobList from "./JobList";
 import JobForm from "./JobForm";
 import JobDetail from "./JobDetail";
 import Discover from "./Discover";
+import JobCompare from "./JobCompare";
 import ResumeCritique from "./ResumeCritique";
 
 type View =
@@ -18,7 +19,8 @@ type View =
   | { page: "job-add" }
   | { page: "job-edit"; job: Job }
   | { page: "resume"; preselectedJobId?: string }
-  | { page: "profile" };
+  | { page: "profile" }
+  | { page: "compare"; jobs: Job[] };
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -165,7 +167,7 @@ function App() {
 
   // ── Tab styling ─────────────────────────────────────
   const isActive = (check: string) => {
-    if (check === "tracker") return view.page.startsWith("job");
+    if (check === "tracker") return view.page.startsWith("job") || view.page === "compare";
     if (check === "resume") return view.page === "resume";
     return view.page === check;
   };
@@ -295,6 +297,7 @@ function App() {
             token={token}
             onSelectJob={(job) => setView({ page: "job-detail", job })}
             onAddJob={() => setView({ page: "job-add" })}
+            onCompare={(jobs) => setView({ page: "compare", jobs })}
           />
         )}
 
@@ -311,6 +314,7 @@ function App() {
           <JobDetail
             job={view.job}
             token={token}
+            profile={profile}
             onEdit={() => setView({ page: "job-edit", job: view.job })}
             onBack={() => setView({ page: "jobs" })}
             onBackToDiscover={() => setView({ page: "discover" })}
@@ -332,6 +336,15 @@ function App() {
             existingJob={view.job}
             onSaved={(updated) => setView({ page: "job-detail", job: updated })}
             onCancel={() => setView({ page: "job-detail", job: view.job })}
+          />
+        )}
+
+        {view.page === "compare" && (
+          <JobCompare
+            jobs={view.jobs}
+            token={token}
+            profile={profile}
+            onBack={() => setView({ page: "jobs" })}
           />
         )}
 

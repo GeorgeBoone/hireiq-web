@@ -1,11 +1,12 @@
 // src/JobDetail.tsx
-import { useState, useEffect } from "react";
-import type { Job, CompanyIntel } from "./api";
+import { useState, useEffect, useMemo } from "react";
+import type { Job, CompanyIntel, Profile } from "./api";
 import { getCompanyIntel } from "./api";
 
 interface JobDetailProps {
   job: Job;
   token: string;
+  profile?: Profile | null;
   onEdit: () => void;
   onBack: () => void;
   onBackToDiscover?: () => void;
@@ -155,11 +156,271 @@ function GlassCard({ children, style }: { children: React.ReactNode; style?: Rea
   );
 }
 
+// ── Skill Gap Analysis ───────────────────────────────
+
+type SkillStatus = "have" | "partial" | "missing";
+
+interface SkillGapItem {
+  skill: string;
+  status: SkillStatus;
+  matchedWith?: string; // user skill that partially matched
+  isPreferred: boolean;
+}
+
+interface SkillGapResult {
+  items: SkillGapItem[];
+  coverageRequired: number; // % of required skills covered (have + partial)
+  coverageAll: number;      // % of all skills covered
+  haveCount: number;
+  partialCount: number;
+  missingCount: number;
+}
+
+function normalizeSkill(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9+#]/g, "").trim();
+}
+
+function isPartialMatch(userSkill: string, jobSkill: string): boolean {
+  const u = normalizeSkill(userSkill);
+  const j = normalizeSkill(jobSkill);
+  if (u === j) return false; // exact match handled separately
+  // Check containment: "React" matches "React.js", "JavaScript" matches "JS/JavaScript"
+  if (u.includes(j) || j.includes(u)) return true;
+  // Common aliases
+  const aliases: Record<string, string[]> = {
+    js: ["javascript"],
+    ts: ["typescript"],
+    py: ["python"],
+    react: ["reactjs", "reactnative"],
+    node: ["nodejs", "nodej"],
+    postgres: ["postgresql", "psql"],
+    mongo: ["mongodb"],
+    k8s: ["kubernetes"],
+    aws: ["amazonwebservices"],
+    gcp: ["googlecloud", "googlecloudplatform"],
+    ml: ["machinelearning"],
+    ai: ["artificialintelligence"],
+    css: ["css3"],
+    html: ["html5"],
+    cpp: ["c++", "cplusplus"],
+    csharp: ["c#"],
+    dotnet: [".net", "aspnet"],
+  };
+  for (const [key, vals] of Object.entries(aliases)) {
+    const group = [key, ...vals];
+    if (group.includes(u) && group.includes(j)) return true;
+  }
+  return false;
+}
+
+function analyzeSkillGap(
+  userSkills: string[],
+  requiredSkills: string[],
+  preferredSkills: string[]
+): SkillGapResult {
+  const userNorm = userSkills.map((s) => ({ original: s, norm: normalizeSkill(s) }));
+  const items: SkillGapItem[] = [];
+
+  const processSkill = (skill: string, isPreferred: boolean) => {
+    const norm = normalizeSkill(skill);
+    // Exact match
+    if (userNorm.some((u) => u.norm === norm)) {
+      items.push({ skill, status: "have", isPreferred });
+      return;
+    }
+    // Partial match
+    const partial = userNorm.find((u) => isPartialMatch(u.original, skill));
+    if (partial) {
+      items.push({ skill, status: "partial", matchedWith: partial.original, isPreferred });
+      return;
+    }
+    // Missing
+    items.push({ skill, status: "missing", isPreferred });
+  };
+
+  requiredSkills.forEach((s) => processSkill(s, false));
+  preferredSkills.forEach((s) => processSkill(s, true));
+
+  const requiredItems = items.filter((i) => !i.isPreferred);
+  const haveCount = items.filter((i) => i.status === "have").length;
+  const partialCount = items.filter((i) => i.status === "partial").length;
+  const missingCount = items.filter((i) => i.status === "missing").length;
+
+  const requiredCovered = requiredItems.filter((i) => i.status === "have" || i.status === "partial").length;
+  const coverageRequired = requiredItems.length > 0 ? Math.round((requiredCovered / requiredItems.length) * 100) : 100;
+
+  const allCovered = items.filter((i) => i.status === "have" || i.status === "partial").length;
+  const coverageAll = items.length > 0 ? Math.round((allCovered / items.length) * 100) : 100;
+
+  return { items, coverageRequired, coverageAll, haveCount, partialCount, missingCount };
+}
+
+// ── Coverage Ring ────────────────────────────────────
+function CoverageRing({ pct, size = 80, stroke = 6 }: { pct: number; size?: number; stroke?: number }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (pct / 100) * circumference;
+  const color = pct >= 80 ? "#4ade80" : pct >= 60 ? "#60a5fa" : pct >= 40 ? "#fbbf24" : "#f87171";
+
+  return (
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
+        stroke="rgba(200, 210, 240, 0.08)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
+        stroke={color} strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={circumference} strokeDashoffset={offset}
+        style={{ transition: "stroke-dashoffset 0.8s ease" }} />
+      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
+        fill={color} fontSize={size * 0.26} fontWeight={800}
+        style={{ transform: "rotate(90deg)", transformOrigin: "center" }}>
+        {pct}%
+      </text>
+    </svg>
+  );
+}
+
+// ── Skill Gap Panel ──────────────────────────────────
+function SkillGapPanel({ gap }: { gap: SkillGapResult }) {
+  const statusIcon = (status: SkillStatus) => {
+    switch (status) {
+      case "have": return { symbol: "✓", color: "#4ade80", bg: "rgba(74, 222, 128, 0.1)" };
+      case "partial": return { symbol: "~", color: "#fbbf24", bg: "rgba(251, 191, 36, 0.1)" };
+      case "missing": return { symbol: "✕", color: "#f87171", bg: "rgba(248, 113, 113, 0.1)" };
+    }
+  };
+
+  const sorted = [...gap.items].sort((a, b) => {
+    const order: Record<SkillStatus, number> = { missing: 0, partial: 1, have: 2 };
+    return order[a.status] - order[b.status];
+  });
+
+  const requiredItems = sorted.filter((i) => !i.isPreferred);
+  const preferredItems = sorted.filter((i) => i.isPreferred);
+
+  return (
+    <div>
+      {/* Header + Coverage Ring */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+        <CoverageRing pct={gap.coverageRequired} />
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
+            Skill Coverage
+          </div>
+          <div style={{ fontSize: 12, color: "#8a8498", lineHeight: 1.5 }}>
+            <span style={{ color: "#4ade80", fontWeight: 600 }}>{gap.haveCount}</span> matched · {" "}
+            <span style={{ color: "#fbbf24", fontWeight: 600 }}>{gap.partialCount}</span> partial · {" "}
+            <span style={{ color: "#f87171", fontWeight: 600 }}>{gap.missingCount}</span> missing
+          </div>
+        </div>
+      </div>
+
+      {/* Required Skills */}
+      {requiredItems.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{
+            fontSize: 10, color: "#8a8498", fontWeight: 600, textTransform: "uppercase",
+            letterSpacing: "0.5px", marginBottom: 8,
+          }}>
+            Required Skills
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {requiredItems.map((item) => {
+              const ic = statusIcon(item.status);
+              return (
+                <div key={item.skill} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "6px 10px", borderRadius: 8,
+                  background: ic.bg, border: `1px solid ${ic.color}22`,
+                }}>
+                  <span style={{
+                    width: 20, height: 20, borderRadius: 6, display: "flex",
+                    alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 800, color: ic.color,
+                    background: `${ic.color}18`,
+                  }}>
+                    {ic.symbol}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#c8c2d4", flex: 1 }}>
+                    {item.skill}
+                  </span>
+                  {item.status === "partial" && item.matchedWith && (
+                    <span style={{ fontSize: 10, color: "#fbbf24", opacity: 0.8 }}>
+                      ≈ {item.matchedWith}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Preferred Skills */}
+      {preferredItems.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{
+            fontSize: 10, color: "#8a8498", fontWeight: 600, textTransform: "uppercase",
+            letterSpacing: "0.5px", marginBottom: 8,
+          }}>
+            Nice to Have
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {preferredItems.map((item) => {
+              const ic = statusIcon(item.status);
+              return (
+                <div key={item.skill} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "6px 10px", borderRadius: 8,
+                  background: ic.bg, border: `1px solid ${ic.color}22`,
+                  opacity: 0.85,
+                }}>
+                  <span style={{
+                    width: 20, height: 20, borderRadius: 6, display: "flex",
+                    alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 800, color: ic.color,
+                    background: `${ic.color}18`,
+                  }}>
+                    {ic.symbol}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#c8c2d4", flex: 1 }}>
+                    {item.skill}
+                  </span>
+                  {item.status === "partial" && item.matchedWith && (
+                    <span style={{ fontSize: 10, color: "#fbbf24", opacity: 0.8 }}>
+                      ≈ {item.matchedWith}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Missing skills summary */}
+      {gap.missingCount > 0 && (
+        <GlassCard style={{ padding: 14, marginTop: 4 }}>
+          <div style={{ fontSize: 10, color: "#8a8498", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>
+            Bridge the Gap
+          </div>
+          <div style={{ fontSize: 12, lineHeight: 1.6, color: "#b0aac0" }}>
+            {gap.items
+              .filter((i) => i.status === "missing" && !i.isPreferred)
+              .map((i) => i.skill)
+              .join(", ")}{" "}
+            — consider adding these to your skillset to strengthen your application.
+          </div>
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
 // ═════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═════════════════════════════════════════════════════
 
-export default function JobDetail({ job, token, onEdit, onBack, onBackToDiscover, onCritique }: JobDetailProps) {
+export default function JobDetail({ job, token, profile, onEdit, onBack, onBackToDiscover, onCritique }: JobDetailProps) {
   const [intel, setIntel] = useState<CompanyIntel | null>(null);
   const [intelLoading, setIntelLoading] = useState(false);
   const [intelError, setIntelError] = useState("");
@@ -180,8 +441,53 @@ export default function JobDetail({ job, token, onEdit, onBack, onBackToDiscover
   const revenueGrowth = calcGrowth(revenueData);
   const earningsGrowth = calcGrowth(earningsData);
 
+  // Skill gap analysis
+  const extractedSkills = useMemo(() => {
+    // If job already has requiredSkills, use them
+    if (job.requiredSkills && job.requiredSkills.length > 0) return [];
+    // Otherwise extract from description
+    if (!job.description) return [];
+    const desc = job.description.toLowerCase();
+    const knownSkills = [
+      "Java", "JavaScript", "TypeScript", "Python", "Go", "Rust", "C++", "C#", "Ruby", "PHP", "Swift", "Kotlin",
+      "React", "React Native", "Angular", "Vue", "Svelte", "Next.js", "Nuxt", "Node.js", "Express", "Django", "Flask",
+      "Spring Boot", "Spring", ".NET", "ASP.NET", "Rails", "Laravel",
+      "AWS", "Azure", "GCP", "Docker", "Kubernetes", "Terraform", "Jenkins", "CI/CD",
+      "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch", "DynamoDB", "Cassandra",
+      "Kafka", "RabbitMQ", "GraphQL", "REST", "gRPC", "Microservices",
+      "HTML", "CSS", "Sass", "Tailwind", "Bootstrap",
+      "Git", "Linux", "Agile", "Scrum", "Jira",
+      "TensorFlow", "PyTorch", "Machine Learning", "Deep Learning", "NLP",
+      "Figma", "Sketch", "UI/UX",
+      "SQL", "NoSQL", "ETL", "Data Pipeline",
+      "Firebase", "Supabase", "Auth0",
+      "Nginx", "Apache", "Webpack", "Vite",
+      "Jest", "Cypress", "Selenium", "Unit Testing",
+      "OAuth", "JWT", "SSO",
+    ];
+    const found: string[] = [];
+    for (const skill of knownSkills) {
+      // Word boundary match to avoid partial matches like "Go" in "Google"
+      const pattern = new RegExp(`\\b${skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      if (pattern.test(desc)) {
+        found.push(skill);
+      }
+    }
+    return found;
+  }, [job.requiredSkills, job.description]);
+
+  const effectiveRequired = job.requiredSkills?.length > 0 ? job.requiredSkills : extractedSkills;
+  const effectivePreferred = job.preferredSkills || [];
+  const allJobSkills = [...effectiveRequired, ...effectivePreferred];
+  const hasSkillData = allJobSkills.length > 0 && profile?.skills && profile.skills.length > 0;
+  const skillsExtracted = extractedSkills.length > 0;
+  const skillGap = useMemo(() => {
+    if (!hasSkillData) return null;
+    return analyzeSkillGap(profile!.skills, effectiveRequired, effectivePreferred);
+  }, [profile?.skills, effectiveRequired, effectivePreferred, hasSkillData]);
+
   return (
-    <div style={{ maxWidth: "var(--content-narrow)", margin: "0 auto" }}>
+    <div style={{ maxWidth: "var(--content-max)", margin: "0 auto" }}>
       {/* Top bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div style={{ display: "flex", gap: 8 }}>
@@ -221,14 +527,22 @@ export default function JobDetail({ job, token, onEdit, onBack, onBackToDiscover
         </button>
       </div>
 
-      {/* Main card */}
-      <div
-        style={{
-          background: "rgba(200, 210, 240, 0.06)", backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)", borderRadius: "var(--radius-lg)",
-          border: "1px solid rgba(150, 170, 220, 0.1)", padding: 32, boxShadow: "var(--shadow-sm)",
-        }}
-      >
+      {/* Two-column layout */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 340px",
+        gap: 20,
+        alignItems: "start",
+      }}>
+        {/* LEFT COLUMN: Job Detail */}
+        <div
+          style={{
+            background: "rgba(200, 210, 240, 0.06)", backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)", borderRadius: "var(--radius-lg)",
+            border: "1px solid rgba(150, 170, 220, 0.1)", padding: 32, boxShadow: "var(--shadow-sm)",
+            minWidth: 0,
+          }}
+        >
         {/* Title */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -617,6 +931,60 @@ export default function JobDetail({ job, token, onEdit, onBack, onBackToDiscover
           </div>
         )}
       </div>
+      {/* END LEFT COLUMN */}
+
+      {/* RIGHT COLUMN: Skill Gap Analysis */}
+      <div style={{
+        position: "sticky", top: "calc(var(--nav-height, 56px) + 16px)",
+        background: "rgba(200, 210, 240, 0.06)", backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)", borderRadius: "var(--radius-lg)",
+        border: "1px solid rgba(150, 170, 220, 0.1)", padding: 24, boxShadow: "var(--shadow-sm)",
+      }}>
+        <h3 style={{
+          fontSize: 14, color: "#8a8498", fontWeight: 600, margin: "0 0 16px",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          Skill Gap Analysis
+          {skillGap && (
+            <span style={{
+              fontSize: 10, padding: "2px 8px", borderRadius: 6, fontWeight: 500,
+              background: skillGap.coverageRequired >= 80 ? "rgba(74, 222, 128, 0.1)" : skillGap.coverageRequired >= 60 ? "rgba(96, 165, 250, 0.1)" : "rgba(248, 113, 113, 0.1)",
+              color: skillGap.coverageRequired >= 80 ? "#4ade80" : skillGap.coverageRequired >= 60 ? "#60a5fa" : "#f87171",
+            }}>
+              {skillGap.coverageRequired >= 80 ? "Strong Fit" : skillGap.coverageRequired >= 60 ? "Good Fit" : "Gaps to Fill"}
+            </span>
+          )}
+          {skillsExtracted && (
+            <span style={{
+              fontSize: 10, padding: "2px 8px", borderRadius: 6, fontWeight: 500,
+              background: "rgba(251, 191, 36, 0.1)", color: "#fbbf24",
+            }}>
+              Auto-detected
+            </span>
+          )}
+        </h3>
+
+        {skillGap ? (
+          <SkillGapPanel gap={skillGap} />
+        ) : !profile?.skills || profile.skills.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>🎯</div>
+            <div style={{ fontSize: 13, color: "#8a8498", lineHeight: 1.5 }}>
+              Add skills to your profile to see how you match this role.
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>📋</div>
+            <div style={{ fontSize: 13, color: "#8a8498", lineHeight: 1.5 }}>
+              This job doesn't have skill requirements listed yet.
+            </div>
+          </div>
+        )}
+      </div>
+
+      </div>
+      {/* END GRID */}
 
       {/* Keyframes */}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>

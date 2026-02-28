@@ -175,6 +175,7 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
                   description: job.description,
                   applyUrl: job.applyUrl,
                   requiredSkills: job.requiredSkills,
+                  preferredSkills: [],
                   matchScore: job.matchScore,
                   source: job.source,
                   companyLogo: job.companyLogo,

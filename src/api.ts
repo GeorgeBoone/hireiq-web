@@ -37,7 +37,7 @@ export const getProfile = (token: string): Promise<Profile> =>
   apiFetch("/profile", token);
 
 export const syncUser = (token: string) =>
-  apiFetch("/auth/sync", token, { method: "POST" });
+  apiFetch("/auth/google", token, { method: "POST" });
 
 export const updateProfile = (token: string, data: Partial<Profile>) =>
   apiFetch("/profile", token, { method: "PUT", body: JSON.stringify(data) });
@@ -101,11 +101,14 @@ export const updateJobStatus = (token: string, id: string, status: string) =>
   });
 
 // ─── Parse ──────────────────────────────────────────
-export const parseJobPosting = (token: string, text: string) =>
-  apiFetch("/jobs/parse", token, {
+export const parseJobPosting = (token: string, input: string) => {
+  const trimmed = input.trim();
+  const isUrl = /^https?:\/\//i.test(trimmed) && !trimmed.includes("\n");
+  return apiFetch("/jobs/parse", token, {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(isUrl ? { url: trimmed } : { text: trimmed }),
   });
+};
 
 // ─── Feed ───────────────────────────────────────────
 export interface FeedJob {
@@ -278,6 +281,39 @@ export interface CompanyIntel {
   officers: CompanyOfficer[];
 }
 
+// ─── Job Comparison ───────────────────────────────────
+export interface JobRanking {
+  label: string;
+  rank: number;
+  score: number;
+}
+
+export interface CompareDimension {
+  name: string;
+  winner: string;
+  scores: Record<string, number>;
+  notes: string;
+}
+
+export interface CompareResult {
+  recommendation: string;
+  recommendationReason: string;
+  rankings: JobRanking[];
+  dimensions: CompareDimension[];
+  summary: string;
+  caveats: string[];
+}
+
+export const compareJobs = (
+  token: string,
+  jobIds: string[]
+): Promise<CompareResult> =>
+  apiFetch("/ai/compare", token, {
+    method: "POST",
+    body: JSON.stringify({ jobIds }),
+  });
+
+// ─── Company Intel ─────────────────────────────────
 export const getCompanyIntel = (
   token: string,
   company: string,
