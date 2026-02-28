@@ -1,7 +1,14 @@
 // src/JobDetail.tsx
 import { useState, useEffect, useMemo } from "react";
-import type { Job, CompanyIntel, Profile } from "./api";
-import { getCompanyIntel } from "./api";
+import type { Job, CompanyIntel, Profile, Application, StatusHistory } from "./api";
+import {
+  getCompanyIntel,
+  getApplication,
+  createApplication,
+  updateApplicationStatus,
+  updateApplicationDetails,
+  getApplicationHistory,
+} from "./api";
 
 interface JobDetailProps {
   job: Job;
@@ -63,38 +70,6 @@ function MiniSparkline({
         fill={color}
       />
     </svg>
-  );
-}
-
-// ── Rating Bar ───────────────────────────────────────
-function RatingBar({ label, value, max = 5 }: { label: string; value: number; max?: number }) {
-  const pct = (value / max) * 100;
-  const color =
-    value >= 4.3 ? "#4ade80" : value >= 3.8 ? "#60a5fa" : value >= 3.3 ? "#fbbf24" : "#f87171";
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
-      <span style={{ fontSize: 11, color: "rgba(176, 170, 192, 0.7)", width: 56, flexShrink: 0 }}>
-        {label}
-      </span>
-      <div
-        style={{
-          flex: 1, height: 5, borderRadius: 3,
-          background: "rgba(200, 210, 240, 0.06)", overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            height: "100%", borderRadius: 3, width: `${pct}%`,
-            background: color, boxShadow: `0 0 8px ${color}44`,
-            transition: "width 0.6s ease",
-          }}
-        />
-      </div>
-      <span style={{ fontSize: 11, fontWeight: 700, color, width: 26, textAlign: "right" }}>
-        {value.toFixed(1)}
-      </span>
-    </div>
   );
 }
 
@@ -486,6 +461,93 @@ export default function JobDetail({ job, token, profile, onEdit, onBack, onBackT
     return analyzeSkillGap(profile!.skills, effectiveRequired, effectivePreferred);
   }, [profile?.skills, effectiveRequired, effectivePreferred, hasSkillData]);
 
+  // ── Pipeline Tracker state ────────────────────────────
+  const [application, setApplication] = useState<Application | null>(null);
+  const [appLoading, setAppLoading] = useState(true);
+  const [history, setHistory] = useState<StatusHistory[]>([]);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [statusConfirm, setStatusConfirm] = useState<string | null>(null);
+  const [statusNote, setStatusNote] = useState("");
+  const [nextStepDraft, setNextStepDraft] = useState("");
+  const [detailsSaving, setDetailsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!job.id || !token) return;
+    setAppLoading(true);
+    getApplication(token, job.id)
+      .then((data) => {
+        setApplication(data);
+        if (data) {
+          setNextStepDraft(data.nextStep || "");
+          getApplicationHistory(token, job.id)
+            .then(setHistory)
+            .catch(() => {});
+        }
+      })
+      .catch(() => setApplication(null))
+      .finally(() => setAppLoading(false));
+  }, [job.id, token]);
+
+  async function handleStartTracking() {
+    try {
+      const now = new Date().toISOString();
+      const created = await createApplication(token, job.id, {
+        status: "applied",
+        appliedAt: now,
+      });
+      setApplication(created);
+      setNextStepDraft(created.nextStep || "");
+    } catch (err: any) {
+      console.error("Failed to start tracking:", err.message);
+    }
+  }
+
+  async function handleStatusChange(newStatus: string) {
+    if (!application) return;
+    try {
+      const updated = await updateApplicationStatus(token, job.id, newStatus, statusNote);
+      setApplication(updated);
+      setStatusConfirm(null);
+      setStatusNote("");
+      const h = await getApplicationHistory(token, job.id);
+      setHistory(h);
+    } catch (err: any) {
+      console.error("Failed to update status:", err.message);
+    }
+  }
+
+  async function handleDetailsSave(details: {
+    nextStep?: string;
+    followUpDate?: string | null;
+    followUpType?: string;
+    followUpUrgent?: boolean;
+  }) {
+    if (!application) return;
+    setDetailsSaving(true);
+    try {
+      const updated = await updateApplicationDetails(token, job.id, details);
+      setApplication(updated);
+    } catch (err: any) {
+      console.error("Failed to update details:", err.message);
+    } finally {
+      setDetailsSaving(false);
+    }
+  }
+
+  const PIPELINE_STAGES = [
+    { id: "saved", label: "Saved", color: "#818cf8", emoji: "📋" },
+    { id: "applied", label: "Applied", color: "#c084fc", emoji: "📨" },
+    { id: "screening", label: "Screening", color: "#fbbf58", emoji: "📞" },
+    { id: "interview", label: "Interview", color: "#60a5fa", emoji: "🎯" },
+    { id: "offer", label: "Offer", color: "#6ee7a8", emoji: "🎉" },
+  ];
+
+  const currentStageIndex = application
+    ? PIPELINE_STAGES.findIndex((s) => s.id === application.status)
+    : -1;
+
+  const isTerminal = application?.status === "rejected" || application?.status === "withdrawn";
+
   return (
     <div style={{ maxWidth: "var(--content-max)", margin: "0 auto" }}>
       {/* Top bar */}
@@ -526,6 +588,357 @@ export default function JobDetail({ job, token, profile, onEdit, onBack, onBackT
           Edit
         </button>
       </div>
+
+      {/* ── Pipeline Tracker ──────────────────────────── */}
+      {!appLoading && !application && !isTerminal && (
+        <div style={{
+          marginBottom: 20,
+          background: "rgba(200, 210, 240, 0.04)",
+          border: "1px dashed rgba(150, 170, 220, 0.15)",
+          borderRadius: "var(--radius-lg)",
+          padding: "20px 28px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
+              Pipeline Tracker
+            </div>
+            <div style={{ fontSize: 13, color: "#8a8498", marginTop: 2 }}>
+              Start tracking this application to manage your pipeline
+            </div>
+          </div>
+          <button
+            onClick={handleStartTracking}
+            style={{
+              padding: "9px 24px",
+              background: "linear-gradient(135deg, #818cf8, #6366f1)",
+              color: "white", border: "none", borderRadius: "var(--radius-sm)",
+              fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 16px rgba(129, 140, 248, 0.2)",
+            }}
+          >
+            Start Tracking
+          </button>
+        </div>
+      )}
+
+      {application && (
+        <div style={{
+          marginBottom: 20,
+          background: "rgba(200, 210, 240, 0.06)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          borderRadius: "var(--radius-lg)",
+          border: "1px solid rgba(150, 170, 220, 0.1)",
+          padding: "24px 28px",
+          boxShadow: "var(--shadow-sm)",
+        }}>
+          {/* Pipeline stages */}
+          <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 20 }}>
+            {PIPELINE_STAGES.map((stage, i) => {
+              const isCurrent = !isTerminal && stage.id === application.status;
+              const isCompleted = !isTerminal && currentStageIndex > i;
+              const isClickable = !isTerminal && stage.id !== application.status;
+
+              return (
+                <div key={stage.id} style={{ display: "flex", alignItems: "center", flex: 1 }}>
+                  <div
+                    onClick={() => isClickable && setStatusConfirm(stage.id)}
+                    style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                      cursor: isClickable ? "pointer" : "default",
+                      opacity: isTerminal ? 0.4 : (isCurrent || isCompleted ? 1 : 0.4),
+                      transition: "all 0.2s",
+                      flex: 1,
+                    }}
+                  >
+                    <div style={{
+                      width: 36, height: 36, borderRadius: "50%",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 16,
+                      background: isCurrent
+                        ? `${stage.color}22`
+                        : isCompleted
+                          ? `${stage.color}18`
+                          : "rgba(200, 210, 240, 0.06)",
+                      border: isCurrent
+                        ? `2px solid ${stage.color}`
+                        : isCompleted
+                          ? `2px solid ${stage.color}66`
+                          : "2px solid rgba(150, 170, 220, 0.1)",
+                      boxShadow: isCurrent ? `0 0 16px ${stage.color}33` : "none",
+                    }}>
+                      {isCompleted ? "✓" : stage.emoji}
+                    </div>
+                    <span style={{
+                      fontSize: 11, fontWeight: isCurrent ? 700 : 500,
+                      color: isCurrent ? stage.color : isCompleted ? "#b0aac0" : "#6e6a80",
+                      letterSpacing: "-0.2px",
+                    }}>
+                      {stage.label}
+                    </span>
+                  </div>
+                  {i < PIPELINE_STAGES.length - 1 && (
+                    <div style={{
+                      height: 2, flex: "0 0 20px",
+                      background: isCompleted ? `${stage.color}44` : "rgba(150, 170, 220, 0.08)",
+                      marginTop: -18,
+                    }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Terminal status badge */}
+          {isTerminal && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, marginBottom: 16,
+              padding: "8px 14px", borderRadius: "var(--radius-sm)",
+              background: application.status === "rejected" ? "rgba(239, 68, 68, 0.1)" : "rgba(150, 170, 220, 0.08)",
+              border: `1px solid ${application.status === "rejected" ? "rgba(239, 68, 68, 0.2)" : "rgba(150, 170, 220, 0.12)"}`,
+            }}>
+              <span style={{ fontSize: 14 }}>{application.status === "rejected" ? "✗" : "↩"}</span>
+              <span style={{
+                fontSize: 13, fontWeight: 600,
+                color: application.status === "rejected" ? "#ef4444" : "#b0aac0",
+              }}>
+                {application.status === "rejected" ? "Rejected" : "Withdrawn"}
+              </span>
+              <button
+                onClick={() => setStatusConfirm("applied")}
+                style={{
+                  marginLeft: "auto", padding: "4px 12px", fontSize: 12, fontWeight: 600,
+                  background: "rgba(200, 210, 240, 0.06)", border: "1px solid rgba(150, 170, 220, 0.1)",
+                  borderRadius: "var(--radius-sm)", color: "#b0aac0", cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Reopen
+              </button>
+            </div>
+          )}
+
+          {/* Status confirm dialog */}
+          {statusConfirm && (
+            <div style={{
+              marginBottom: 16, padding: "14px 18px",
+              background: "rgba(129, 140, 248, 0.06)",
+              border: "1px solid rgba(129, 140, 248, 0.12)",
+              borderRadius: "var(--radius-sm)",
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 10 }}>
+                Move to {PIPELINE_STAGES.find((s) => s.id === statusConfirm)?.label || statusConfirm}?
+              </div>
+              <input
+                value={statusNote}
+                onChange={(e) => setStatusNote(e.target.value)}
+                placeholder="Add a note (optional)..."
+                style={{
+                  width: "100%", padding: "8px 12px", fontSize: 13,
+                  background: "rgba(200, 210, 240, 0.06)",
+                  border: "1px solid rgba(150, 170, 220, 0.1)",
+                  borderRadius: "var(--radius-sm)", color: "var(--text-primary)",
+                  fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box",
+                }}
+              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => handleStatusChange(statusConfirm)}
+                  style={{
+                    padding: "6px 18px", fontSize: 13, fontWeight: 600,
+                    background: "linear-gradient(135deg, #818cf8, #6366f1)",
+                    color: "white", border: "none", borderRadius: "var(--radius-sm)",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => { setStatusConfirm(null); setStatusNote(""); }}
+                  style={{
+                    padding: "6px 18px", fontSize: 13, fontWeight: 500,
+                    background: "transparent", border: "1px solid rgba(150, 170, 220, 0.1)",
+                    borderRadius: "var(--radius-sm)", color: "#b0aac0",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Reject / Withdraw actions */}
+          {!isTerminal && !statusConfirm && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <button
+                onClick={() => setStatusConfirm("rejected")}
+                style={{
+                  padding: "5px 14px", fontSize: 12, fontWeight: 500,
+                  background: "rgba(239, 68, 68, 0.06)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                  borderRadius: "var(--radius-sm)", color: "#ef4444",
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Mark Rejected
+              </button>
+              <button
+                onClick={() => setStatusConfirm("withdrawn")}
+                style={{
+                  padding: "5px 14px", fontSize: 12, fontWeight: 500,
+                  background: "rgba(200, 210, 240, 0.04)", border: "1px solid rgba(150, 170, 220, 0.1)",
+                  borderRadius: "var(--radius-sm)", color: "#8a8498",
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Withdraw
+              </button>
+            </div>
+          )}
+
+          {/* Details row */}
+          <div style={{
+            display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 16, alignItems: "start",
+            borderTop: "1px solid rgba(150, 170, 220, 0.08)", paddingTop: 16,
+          }}>
+            {/* Applied date */}
+            <div>
+              <div style={{ fontSize: 11, color: "#6e6a80", fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Applied</div>
+              <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>
+                {application.appliedAt
+                  ? new Date(application.appliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  : "—"}
+              </div>
+            </div>
+
+            {/* Next step */}
+            <div>
+              <div style={{ fontSize: 11, color: "#6e6a80", fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Next Step</div>
+              <input
+                value={nextStepDraft}
+                onChange={(e) => setNextStepDraft(e.target.value)}
+                onBlur={() => {
+                  if (nextStepDraft !== (application.nextStep || "")) {
+                    handleDetailsSave({ nextStep: nextStepDraft });
+                  }
+                }}
+                placeholder="e.g. Phone screen with hiring manager, Tuesday 3pm"
+                style={{
+                  width: "100%", padding: "6px 10px", fontSize: 13,
+                  background: "rgba(200, 210, 240, 0.04)",
+                  border: "1px solid rgba(150, 170, 220, 0.08)",
+                  borderRadius: "var(--radius-sm)", color: "var(--text-primary)",
+                  fontFamily: "inherit", boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            {/* Follow-up */}
+            <div>
+              <div style={{ fontSize: 11, color: "#6e6a80", fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Follow Up</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input
+                  type="date"
+                  value={application.followUpDate ? application.followUpDate.slice(0, 10) : ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    handleDetailsSave({
+                      followUpDate: val ? new Date(val + "T12:00:00Z").toISOString() : null,
+                      followUpType: application.followUpType || "email",
+                      followUpUrgent: application.followUpUrgent,
+                    });
+                  }}
+                  style={{
+                    padding: "5px 8px", fontSize: 12,
+                    background: "rgba(200, 210, 240, 0.04)",
+                    border: "1px solid rgba(150, 170, 220, 0.08)",
+                    borderRadius: "var(--radius-sm)", color: "var(--text-primary)",
+                    fontFamily: "inherit",
+                  }}
+                />
+                <select
+                  value={application.followUpType || "email"}
+                  onChange={(e) => handleDetailsSave({ followUpType: e.target.value })}
+                  style={{
+                    padding: "5px 8px", fontSize: 12,
+                    background: "rgba(200, 210, 240, 0.04)",
+                    border: "1px solid rgba(150, 170, 220, 0.08)",
+                    borderRadius: "var(--radius-sm)", color: "var(--text-primary)",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <option value="email">Email</option>
+                  <option value="call">Call</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="other">Other</option>
+                </select>
+                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#8a8498", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={application.followUpUrgent}
+                    onChange={(e) => handleDetailsSave({ followUpUrgent: e.target.checked })}
+                    style={{ accentColor: "#ef4444" }}
+                  />
+                  Urgent
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Status timeline */}
+          {history.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <button
+                onClick={() => setHistoryExpanded(!historyExpanded)}
+                style={{
+                  background: "none", border: "none", padding: 0,
+                  fontSize: 12, fontWeight: 600, color: "#8a8498",
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                {historyExpanded ? "▾" : "▸"} History ({history.length})
+              </button>
+
+              {historyExpanded && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                  {history.map((h) => {
+                    const stageColor = PIPELINE_STAGES.find((s) => s.id === h.toStatus)?.color || "#6e6a80";
+                    return (
+                      <div key={h.id} style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "6px 12px",
+                        background: "rgba(200, 210, 240, 0.04)",
+                        border: "1px solid rgba(150, 170, 220, 0.08)",
+                        borderRadius: 20,
+                      }}>
+                        <div style={{
+                          width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+                          background: stageColor,
+                        }} />
+                        <span style={{ fontSize: 12, color: "#8a8498" }}>{h.fromStatus || "created"}</span>
+                        <span style={{ fontSize: 11, color: "#6e6a80" }}>→</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: stageColor }}>{h.toStatus}</span>
+                        {h.note && (
+                          <span style={{ fontSize: 11, color: "#6e6a80", fontStyle: "italic", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {h.note}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 10, color: "#6e6a80", whiteSpace: "nowrap" }}>
+                          {new Date(h.changedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {detailsSaving && (
+            <div style={{ fontSize: 11, color: "#818cf8", marginTop: 8 }}>Saving...</div>
+          )}
+        </div>
+      )}
 
       {/* Two-column layout */}
       <div style={{

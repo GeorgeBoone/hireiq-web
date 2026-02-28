@@ -100,6 +100,77 @@ export const updateJobStatus = (token: string, id: string, status: string) =>
     body: JSON.stringify({ status }),
   });
 
+// ─── Applications (Pipeline Tracking) ───────────────
+
+export interface Application {
+  id: string;
+  userId: string;
+  jobId: string;
+  status: string;
+  appliedAt?: string;
+  nextStep: string;
+  followUpDate?: string;
+  followUpType: string;
+  followUpUrgent: boolean;
+  createdAt: string;
+  updatedAt: string;
+  job?: Job;
+}
+
+export interface StatusHistory {
+  id: string;
+  applicationId: string;
+  fromStatus: string;
+  toStatus: string;
+  changedAt: string;
+  note: string;
+}
+
+export const getApplication = (token: string, jobId: string): Promise<Application | null> =>
+  apiFetch(`/jobs/${jobId}/application`, token);
+
+export const createApplication = (
+  token: string,
+  jobId: string,
+  data: { status?: string; appliedAt?: string; nextStep?: string }
+): Promise<Application> =>
+  apiFetch(`/jobs/${jobId}/application`, token, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateApplicationStatus = (
+  token: string,
+  jobId: string,
+  status: string,
+  note?: string
+): Promise<Application> =>
+  apiFetch(`/jobs/${jobId}/application/status`, token, {
+    method: "PUT",
+    body: JSON.stringify({ status, note: note || "" }),
+  });
+
+export const updateApplicationDetails = (
+  token: string,
+  jobId: string,
+  data: {
+    nextStep?: string;
+    followUpDate?: string | null;
+    followUpType?: string;
+    followUpUrgent?: boolean;
+  }
+): Promise<Application> =>
+  apiFetch(`/jobs/${jobId}/application/details`, token, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const getApplicationHistory = (
+  token: string,
+  jobId: string
+): Promise<StatusHistory[]> =>
+  apiFetch(`/jobs/${jobId}/application/history`, token);
+
 // ─── Parse ──────────────────────────────────────────
 export const parseJobPosting = (token: string, input: string) => {
   const trimmed = input.trim();
