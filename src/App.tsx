@@ -11,6 +11,7 @@ import JobDetail from "./JobDetail";
 import Discover from "./Discover";
 import JobCompare from "./JobCompare";
 import ResumeCritique from "./ResumeCritique";
+import Network from "./Network";
 
 type View =
   | { page: "jobs" }
@@ -19,6 +20,7 @@ type View =
   | { page: "job-add" }
   | { page: "job-edit"; job: Job }
   | { page: "resume"; preselectedJobId?: string }
+  | { page: "network" }
   | { page: "profile" }
   | { page: "compare"; jobs: Job[] };
 
@@ -169,6 +171,7 @@ function App() {
   const isActive = (check: string) => {
     if (check === "tracker") return view.page.startsWith("job") || view.page === "compare";
     if (check === "resume") return view.page === "resume";
+    if (check === "network") return view.page === "network";
     return view.page === check;
   };
 
@@ -238,6 +241,7 @@ function App() {
               <button onClick={() => setView({ page: "discover" })} style={tabStyle("discover")}>Discover</button>
               <button onClick={() => setView({ page: "jobs" })} style={tabStyle("tracker")}>Tracker</button>
               <button onClick={() => setView({ page: "resume" })} style={tabStyle("resume")}>Resume</button>
+              <button onClick={() => setView({ page: "network" })} style={tabStyle("network")}>Network</button>
               <button onClick={() => setView({ page: "profile" })} style={tabStyle("profile")}>Profile</button>
             </div>
           </div>
@@ -345,6 +349,13 @@ function App() {
             token={token}
             profile={profile}
             onBack={() => setView({ page: "jobs" })}
+          />
+        )}
+
+        {view.page === "network" && (
+          <Network
+            token={token}
+            onViewJob={(job) => setView({ page: "job-detail", job })}
           />
         )}
 

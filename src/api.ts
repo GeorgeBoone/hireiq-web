@@ -384,6 +384,64 @@ export const compareJobs = (
     body: JSON.stringify({ jobIds }),
   });
 
+// ─── Contacts & Network ───────────────────────────
+export interface Contact {
+  id: string;
+  userId: string;
+  name: string;
+  company: string;
+  role: string;
+  connection: string;
+  phone: string;
+  email: string;
+  tip: string;
+  enriched: boolean;
+  enrichedData?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompanySummary {
+  company: string;
+  companyLogo: string;
+  companyColor: string;
+  jobCount: number;
+  contactCount: number;
+}
+
+export interface CompanyDetail {
+  company: string;
+  jobs: Job[];
+  contacts: Contact[];
+}
+
+export const getContacts = (token: string, search?: string): Promise<Contact[]> => {
+  const query = search ? `?search=${encodeURIComponent(search)}` : "";
+  return apiFetch(`/contacts${query}`, token);
+};
+
+export const createContact = (
+  token: string,
+  data: { name: string; company: string; role?: string; connection?: string; phone?: string; email?: string; tip?: string }
+): Promise<Contact> =>
+  apiFetch("/contacts", token, { method: "POST", body: JSON.stringify(data) });
+
+export const updateContact = (
+  token: string,
+  id: string,
+  data: Partial<Contact>
+): Promise<Contact> =>
+  apiFetch(`/contacts/${id}`, token, { method: "PUT", body: JSON.stringify(data) });
+
+export const deleteContact = (token: string, id: string) =>
+  apiFetch(`/contacts/${id}`, token, { method: "DELETE" });
+
+export const getCompanies = (token: string): Promise<CompanySummary[]> =>
+  apiFetch("/network/companies", token);
+
+export const getCompanyDetail = (token: string, company: string): Promise<CompanyDetail> =>
+  apiFetch(`/network/companies/${encodeURIComponent(company)}/detail`, token);
+
 // ─── Company Intel ─────────────────────────────────
 export const getCompanyIntel = (
   token: string,
