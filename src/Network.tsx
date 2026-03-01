@@ -1,6 +1,6 @@
 // src/Network.tsx
-import { useState, useEffect } from "react";
-import type { Job, Contact, CompanySummary, CompanyDetail } from "./api";
+import { useState, useEffect, useRef } from "react";
+import type { Job, Contact, CompanySummary, CompanyDetail, ImportResult } from "./api";
 import {
   getContacts,
   createContact,
@@ -8,6 +8,7 @@ import {
   deleteContact,
   getCompanies,
   getCompanyDetail,
+  importLinkedInCSV,
 } from "./api";
 
 interface NetworkProps {
@@ -48,6 +49,11 @@ export default function Network({ token, onViewJob }: NetworkProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formSaving, setFormSaving] = useState(false);
   const [prefilledCompany, setPrefilledCompany] = useState("");
+
+  // LinkedIn import
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   // Load data on mount and sub-view change
   useEffect(() => {
@@ -163,6 +169,27 @@ export default function Network({ token, onViewJob }: NetworkProps) {
     }
   }
 
+  async function handleLinkedInImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset the input so the same file can be re-selected
+    e.target.value = "";
+    setImporting(true);
+    setImportResult(null);
+    setError(null);
+    try {
+      const result = await importLinkedInCSV(token, file);
+      setImportResult(result);
+      // Refresh contacts list
+      if (subView === "contacts") loadContacts(search);
+      loadCompanies();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleDeleteContact(contact: Contact) {
     if (!confirm(`Delete contact "${contact.name}"?`)) return;
     try {
@@ -266,25 +293,52 @@ export default function Network({ token, onViewJob }: NetworkProps) {
           style={{ flex: 1, maxWidth: 320 }}
         />
 
-        {/* Add Contact button */}
+        {/* Add Contact + Import buttons */}
         {subView === "contacts" && (
-          <button
-            onClick={() => openAddForm()}
-            style={{
-              padding: "8px 20px",
-              background: "linear-gradient(135deg, #818cf8, #6366f1)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              fontWeight: 600,
-              fontSize: 13,
-              fontFamily: "inherit",
-              cursor: "pointer",
-              boxShadow: "0 2px 12px rgba(129, 140, 248, 0.2)",
-            }}
-          >
-            + Add Contact
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              style={{
+                padding: "8px 16px",
+                background: "rgba(255,255,255,0.04)",
+                color: "var(--text-secondary)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "var(--radius-sm)",
+                fontWeight: 600,
+                fontSize: 13,
+                fontFamily: "inherit",
+                cursor: importing ? "wait" : "pointer",
+                opacity: importing ? 0.6 : 1,
+              }}
+            >
+              {importing ? "Importing..." : "Import LinkedIn"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              style={{ display: "none" }}
+              onChange={handleLinkedInImport}
+            />
+            <button
+              onClick={() => openAddForm()}
+              style={{
+                padding: "8px 20px",
+                background: "linear-gradient(135deg, #818cf8, #6366f1)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                fontWeight: 600,
+                fontSize: 13,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                boxShadow: "0 2px 12px rgba(129, 140, 248, 0.2)",
+              }}
+            >
+              + Add Contact
+            </button>
+          </div>
         )}
       </div>
 
@@ -301,6 +355,43 @@ export default function Network({ token, onViewJob }: NetworkProps) {
           }}
         >
           {error}
+        </div>
+      )}
+
+      {importResult && (
+        <div
+          style={{
+            padding: "10px 16px",
+            background: "rgba(34, 197, 94, 0.08)",
+            border: "1px solid rgba(34, 197, 94, 0.15)",
+            borderRadius: "var(--radius-sm)",
+            color: "#22c55e",
+            fontSize: 13,
+            marginBottom: 16,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span>
+            Imported <strong>{importResult.imported}</strong> contacts
+            {importResult.skipped > 0 && <> &middot; {importResult.skipped} duplicates skipped</>}
+            {importResult.parseErrors > 0 && <> &middot; {importResult.parseErrors} rows skipped (missing data)</>}
+          </span>
+          <button
+            onClick={() => setImportResult(null)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#22c55e",
+              cursor: "pointer",
+              fontSize: 16,
+              padding: "0 4px",
+              fontFamily: "inherit",
+            }}
+          >
+            &times;
+          </button>
         </div>
       )}
 
@@ -829,25 +920,45 @@ export default function Network({ token, onViewJob }: NetworkProps) {
                 No contacts yet
               </div>
               <div style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 20 }}>
-                Add your professional contacts to keep track of your network
+                Add your professional contacts or import them from LinkedIn
               </div>
-              <button
-                onClick={() => openAddForm()}
-                style={{
-                  padding: "10px 24px",
-                  background: "linear-gradient(135deg, #818cf8, #6366f1)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "var(--radius-sm)",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  boxShadow: "0 2px 12px rgba(129, 140, 248, 0.2)",
-                }}
-              >
-                + Add Your First Contact
-              </button>
+              <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                  style={{
+                    padding: "10px 24px",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "var(--text-secondary)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    fontFamily: "inherit",
+                    cursor: importing ? "wait" : "pointer",
+                    opacity: importing ? 0.6 : 1,
+                  }}
+                >
+                  {importing ? "Importing..." : "Import LinkedIn CSV"}
+                </button>
+                <button
+                  onClick={() => openAddForm()}
+                  style={{
+                    padding: "10px 24px",
+                    background: "linear-gradient(135deg, #818cf8, #6366f1)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 12px rgba(129, 140, 248, 0.2)",
+                  }}
+                >
+                  + Add Your First Contact
+                </button>
+              </div>
             </div>
           ) : contacts.length === 0 && search ? (
             <div style={{ ...glassCard, textAlign: "center", padding: 40 }}>

@@ -436,6 +436,32 @@ export const updateContact = (
 export const deleteContact = (token: string, id: string) =>
   apiFetch(`/contacts/${id}`, token, { method: "DELETE" });
 
+// ─── LinkedIn CSV Import ──────────────────────────
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  parseErrors: number;
+  total: number;
+}
+
+export const importLinkedInCSV = async (
+  token: string,
+  file: File
+): Promise<ImportResult> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/contacts/import/linkedin`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Failed to import LinkedIn CSV");
+  }
+  return res.json();
+};
+
 export const getCompanies = (token: string): Promise<CompanySummary[]> =>
   apiFetch("/network/companies", token);
 
