@@ -452,3 +452,35 @@ export const getCompanyIntel = (
   if (ticker) params.set("ticker", ticker);
   return apiFetch(`/company/intel?${params.toString()}`, token);
 };
+
+// ─── Billing / Subscriptions ──────────────────────
+export interface Subscription {
+  id?: string;
+  userId?: string;
+  stripeSubId?: string;
+  stripePriceId?: string;
+  plan: string;
+  status: string;
+  currentPeriodEnd?: string;
+  cancelAtPeriodEnd?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const getSubscription = (token: string): Promise<Subscription> =>
+  apiFetch("/billing/subscription", token);
+
+export const createCheckoutSession = (
+  token: string,
+  plan: string,
+  interval: string
+): Promise<{ url: string }> =>
+  apiFetch("/billing/checkout", token, {
+    method: "POST",
+    body: JSON.stringify({ plan, interval }),
+  });
+
+export const createPortalSession = (
+  token: string
+): Promise<{ url: string }> =>
+  apiFetch("/billing/portal", token, { method: "POST" });

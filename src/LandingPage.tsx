@@ -5,7 +5,7 @@ import { useState } from "react";
 import HireIQLogo from "./HireIQLogo";
 
 interface LandingPageProps {
-  onSignIn: () => void;
+  onSignIn: (selectedPlan?: string) => void;
   error: string | null;
 }
 
@@ -55,6 +55,7 @@ const FEATURES = [
 const TIERS = [
   {
     name: "Free",
+    planKey: "free",
     price: 0,
     annualPrice: 0,
     description: "Get organized",
@@ -77,6 +78,7 @@ const TIERS = [
   },
   {
     name: "Pro",
+    planKey: "pro",
     price: 19,
     annualPrice: 149,
     description: "For active job seekers",
@@ -96,6 +98,7 @@ const TIERS = [
   },
   {
     name: "Pro+",
+    planKey: "pro_plus",
     price: 39,
     annualPrice: 299,
     description: "All-in job search",
@@ -114,6 +117,7 @@ const TIERS = [
   },
   {
     name: "Enterprise",
+    planKey: "enterprise",
     price: -1,
     annualPrice: -1,
     description: "Outplacement & transition",
@@ -253,7 +257,7 @@ export default function LandingPage({ onSignIn, error }: LandingPageProps) {
               Pricing
             </button>
             <button
-              onClick={onSignIn}
+              onClick={() => onSignIn()}
               style={{
                 padding: "7px 18px",
                 background: "transparent",
@@ -269,7 +273,7 @@ export default function LandingPage({ onSignIn, error }: LandingPageProps) {
               Sign In
             </button>
             <button
-              onClick={onSignIn}
+              onClick={() => onSignIn()}
               onMouseEnter={() => setHoveredCta("nav")}
               onMouseLeave={() => setHoveredCta(null)}
               style={primaryBtn("nav")}
@@ -400,7 +404,7 @@ export default function LandingPage({ onSignIn, error }: LandingPageProps) {
           }}
         >
           <button
-            onClick={onSignIn}
+            onClick={() => onSignIn("free")}
             onMouseEnter={() => setHoveredCta("hero")}
             onMouseLeave={() => setHoveredCta(null)}
             style={primaryBtn("hero", "lg")}
@@ -1006,7 +1010,7 @@ export default function LandingPage({ onSignIn, error }: LandingPageProps) {
 
                 {/* CTA button */}
                 <button
-                  onClick={onSignIn}
+                  onClick={() => onSignIn(tier.planKey)}
                   onMouseEnter={() => setHoveredCta(`tier-${i}`)}
                   onMouseLeave={() => setHoveredCta(null)}
                   style={{
@@ -1094,7 +1098,7 @@ export default function LandingPage({ onSignIn, error }: LandingPageProps) {
           Join HireIQ for free and let AI handle the busywork.
         </p>
         <button
-          onClick={onSignIn}
+          onClick={() => onSignIn("free")}
           onMouseEnter={() => setHoveredCta("final")}
           onMouseLeave={() => setHoveredCta(null)}
           style={{

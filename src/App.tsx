@@ -4,7 +4,7 @@ import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
 import * as api from "./api";
-import type { Job } from "./api";
+import type { Job, Subscription } from "./api";
 import JobList from "./JobList";
 import JobForm from "./JobForm";
 import JobDetail from "./JobDetail";
@@ -33,6 +33,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string>("");
   const [view, setView] = useState<View>({ page: "discover" });
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -55,9 +57,30 @@ function App() {
       const t = await firebaseUser.getIdToken();
       // Sync user record (creates if first login)
       await api.syncUser(t);
-      // Then fetch the full profile
-      const p = await api.getProfile(t);
+      // Then fetch the full profile and subscription in parallel
+      const [p, sub] = await Promise.all([
+        api.getProfile(t),
+        api.getSubscription(t).catch(() => ({ plan: "free", status: "active" } as Subscription)),
+      ]);
       setProfile(p);
+      setSubscription(sub);
+
+      // Handle checkout success redirect
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("checkout") === "success") {
+        setCheckoutSuccess(true);
+        // Refetch subscription (may take a moment for webhook to process)
+        setTimeout(async () => {
+          try {
+            const freshSub = await api.getSubscription(t);
+            setSubscription(freshSub);
+          } catch {}
+        }, 2000);
+        // Clean URL
+        window.history.replaceState({}, "", window.location.pathname);
+        // Auto-hide success message
+        setTimeout(() => setCheckoutSuccess(false), 5000);
+      }
     } catch (err: any) {
       console.error("Backend sync failed:", err.message);
       // Even if sync fails, set a minimal profile so the editor renders
@@ -72,21 +95,60 @@ function App() {
         skills: [],
         githubUrl: "",
       });
+      setSubscription({ plan: "free", status: "active" });
     }
   }
 
-  async function handleSignIn() {
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+
+  // After auth completes, if user selected a paid tier from landing page, auto-redirect to checkout
+  useEffect(() => {
+    if (pendingPlan && token && subscription?.plan === "free") {
+      setPendingPlan(null);
+      api.createCheckoutSession(token, pendingPlan, "month")
+        .then(({ url }) => { window.location.href = url; })
+        .catch((err) => console.error("Auto-checkout failed:", err.message));
+    }
+  }, [pendingPlan, token, subscription]);
+
+  async function handleSignIn(selectedPlan?: string) {
     try {
+      // Store the selected plan so we can redirect to checkout after auth
+      if (selectedPlan && selectedPlan !== "free" && selectedPlan !== "enterprise") {
+        setPendingPlan(selectedPlan);
+      }
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
       setError(err.message);
+      setPendingPlan(null);
     }
   }
 
   async function handleSignOut() {
     await signOut(auth);
     setProfile(null);
+    setSubscription(null);
     setView({ page: "jobs" });
+  }
+
+  async function handleUpgrade(plan: string, interval: string) {
+    if (!token) return;
+    try {
+      const { url } = await api.createCheckoutSession(token, plan, interval);
+      window.location.href = url;
+    } catch (err: any) {
+      console.error("Checkout failed:", err.message);
+    }
+  }
+
+  async function handleManageBilling() {
+    if (!token) return;
+    try {
+      const { url } = await api.createPortalSession(token);
+      window.location.href = url;
+    } catch (err: any) {
+      console.error("Portal failed:", err.message);
+    }
   }
 
   // ── Loading ──────────────────────────────────────────
@@ -232,6 +294,24 @@ function App() {
         margin: "0 auto",
         padding: "28px 32px",
       }}>
+        {/* Checkout success banner */}
+        {checkoutSuccess && (
+          <div style={{
+            background: "rgba(34, 197, 94, 0.1)",
+            border: "1px solid rgba(34, 197, 94, 0.2)",
+            borderRadius: "var(--radius-sm)",
+            padding: "12px 20px",
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}>
+            <span style={{ fontSize: 18 }}>✓</span>
+            <span style={{ color: "#22c55e", fontWeight: 600, fontSize: 14 }}>
+              Welcome to {subscription?.plan === "pro_plus" ? "Pro+" : "Pro"}! Your subscription is now active.
+            </span>
+          </div>
+        )}
         {view.page === "jobs" && (
           <JobList
             token={token}
@@ -296,7 +376,14 @@ function App() {
         )}
 
         {view.page === "profile" && profile && (
-          <ProfileEditor profile={profile} setProfile={setProfile} token={token} />
+          <ProfileEditor
+            profile={profile}
+            setProfile={setProfile}
+            token={token}
+            subscription={subscription}
+            onUpgrade={handleUpgrade}
+            onManageBilling={handleManageBilling}
+          />
         )}
       </main>
     </div>
@@ -308,10 +395,16 @@ function ProfileEditor({
   profile,
   setProfile,
   token,
+  subscription,
+  onUpgrade,
+  onManageBilling,
 }: {
   profile: any;
   setProfile: (p: any) => void;
   token: string;
+  subscription: Subscription | null;
+  onUpgrade: (plan: string, interval: string) => void;
+  onManageBilling: () => void;
 }) {
   const [form, setForm] = useState({
     name: profile.name || "",
@@ -363,6 +456,10 @@ function ProfileEditor({
     }
   }
 
+  const planLabel = subscription?.plan === "pro_plus" ? "Pro+" : subscription?.plan === "pro" ? "Pro" : "Free";
+  const isPaid = subscription?.plan === "pro" || subscription?.plan === "pro_plus";
+  const planColor = subscription?.plan === "pro_plus" ? "#c084fc" : subscription?.plan === "pro" ? "#818cf8" : "#9ca3af";
+
   return (
     <div style={{ maxWidth: "var(--content-narrow)", margin: "0 auto" }}>
       <div style={{ marginBottom: 28 }}>
@@ -370,6 +467,85 @@ function ProfileEditor({
         <p style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 4 }}>
           Your skills and preferences power the job matching engine
         </p>
+      </div>
+
+      {/* ── Subscription Card ──────────────────── */}
+      <div style={{
+        background: "var(--glass-bg)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid var(--glass-border)",
+        padding: 24,
+        boxShadow: "var(--shadow-sm)",
+        marginBottom: 20,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Plan</span>
+            <span style={{
+              padding: "3px 12px",
+              background: `${planColor}20`,
+              color: planColor,
+              borderRadius: 20,
+              fontSize: 12,
+              fontWeight: 700,
+              border: `1px solid ${planColor}30`,
+            }}>
+              {planLabel}
+            </span>
+            {subscription?.cancelAtPeriodEnd && (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                Cancels {subscription.currentPeriodEnd
+                  ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
+                  : "at period end"}
+              </span>
+            )}
+            {isPaid && subscription?.currentPeriodEnd && !subscription.cancelAtPeriodEnd && (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                Renews {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {isPaid ? (
+              <button
+                onClick={onManageBilling}
+                style={{
+                  padding: "7px 18px",
+                  background: "transparent",
+                  border: "1px solid var(--glass-border)",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: 13,
+                  color: "var(--text-secondary)",
+                  fontWeight: 600,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                Manage Billing
+              </button>
+            ) : (
+              <button
+                onClick={() => onUpgrade("pro", "month")}
+                style={{
+                  padding: "7px 18px",
+                  background: "linear-gradient(135deg, #818cf8, #6366f1)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 12px rgba(129, 140, 248, 0.2)",
+                }}
+              >
+                Upgrade to Pro
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div style={{
