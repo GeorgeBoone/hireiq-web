@@ -1,5 +1,5 @@
 // src/JobDetail.tsx
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import type { Job, CompanyIntel, Profile, Application, StatusHistory } from "./api";
 import {
   getCompanyIntel,
@@ -9,6 +9,8 @@ import {
   updateApplicationDetails,
   getApplicationHistory,
 } from "./api";
+import type { SkillStatus, SkillGapItem, SkillGapResult } from "./utils/skillMatching";
+import { normalizeSkill, isPartialMatch, analyzeSkillGap, STATUS_COLORS } from "./utils/skillMatching";
 
 interface JobDetailProps {
   job: Job;
@@ -21,7 +23,7 @@ interface JobDetailProps {
 }
 
 // ── SVG Sparkline ────────────────────────────────────
-function MiniSparkline({
+const MiniSparkline = memo(function MiniSparkline({
   data,
   color,
   height = 36,
@@ -71,7 +73,7 @@ function MiniSparkline({
       />
     </svg>
   );
-}
+});
 
 // ── Analyst Recommendation Badge ─────────────────────
 function RecommendationBadge({ mean, label }: { mean: number; label: string }) {
@@ -131,107 +133,8 @@ function GlassCard({ children, style }: { children: React.ReactNode; style?: Rea
   );
 }
 
-// ── Skill Gap Analysis ───────────────────────────────
-
-type SkillStatus = "have" | "partial" | "missing";
-
-interface SkillGapItem {
-  skill: string;
-  status: SkillStatus;
-  matchedWith?: string; // user skill that partially matched
-  isPreferred: boolean;
-}
-
-interface SkillGapResult {
-  items: SkillGapItem[];
-  coverageRequired: number; // % of required skills covered (have + partial)
-  coverageAll: number;      // % of all skills covered
-  haveCount: number;
-  partialCount: number;
-  missingCount: number;
-}
-
-function normalizeSkill(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9+#]/g, "").trim();
-}
-
-function isPartialMatch(userSkill: string, jobSkill: string): boolean {
-  const u = normalizeSkill(userSkill);
-  const j = normalizeSkill(jobSkill);
-  if (u === j) return false; // exact match handled separately
-  // Check containment: "React" matches "React.js", "JavaScript" matches "JS/JavaScript"
-  if (u.includes(j) || j.includes(u)) return true;
-  // Common aliases
-  const aliases: Record<string, string[]> = {
-    js: ["javascript"],
-    ts: ["typescript"],
-    py: ["python"],
-    react: ["reactjs", "reactnative"],
-    node: ["nodejs", "nodej"],
-    postgres: ["postgresql", "psql"],
-    mongo: ["mongodb"],
-    k8s: ["kubernetes"],
-    aws: ["amazonwebservices"],
-    gcp: ["googlecloud", "googlecloudplatform"],
-    ml: ["machinelearning"],
-    ai: ["artificialintelligence"],
-    css: ["css3"],
-    html: ["html5"],
-    cpp: ["c++", "cplusplus"],
-    csharp: ["c#"],
-    dotnet: [".net", "aspnet"],
-  };
-  for (const [key, vals] of Object.entries(aliases)) {
-    const group = [key, ...vals];
-    if (group.includes(u) && group.includes(j)) return true;
-  }
-  return false;
-}
-
-function analyzeSkillGap(
-  userSkills: string[],
-  requiredSkills: string[],
-  preferredSkills: string[]
-): SkillGapResult {
-  const userNorm = userSkills.map((s) => ({ original: s, norm: normalizeSkill(s) }));
-  const items: SkillGapItem[] = [];
-
-  const processSkill = (skill: string, isPreferred: boolean) => {
-    const norm = normalizeSkill(skill);
-    // Exact match
-    if (userNorm.some((u) => u.norm === norm)) {
-      items.push({ skill, status: "have", isPreferred });
-      return;
-    }
-    // Partial match
-    const partial = userNorm.find((u) => isPartialMatch(u.original, skill));
-    if (partial) {
-      items.push({ skill, status: "partial", matchedWith: partial.original, isPreferred });
-      return;
-    }
-    // Missing
-    items.push({ skill, status: "missing", isPreferred });
-  };
-
-  requiredSkills.forEach((s) => processSkill(s, false));
-  preferredSkills.forEach((s) => processSkill(s, true));
-
-  const requiredItems = items.filter((i) => !i.isPreferred);
-  const haveCount = items.filter((i) => i.status === "have").length;
-  const partialCount = items.filter((i) => i.status === "partial").length;
-  const missingCount = items.filter((i) => i.status === "missing").length;
-
-  const requiredCovered = requiredItems.filter((i) => i.status === "have" || i.status === "partial").length;
-  const coverageRequired = requiredItems.length > 0 ? Math.round((requiredCovered / requiredItems.length) * 100) : 100;
-
-  const allCovered = items.filter((i) => i.status === "have" || i.status === "partial").length;
-  const coverageAll = items.length > 0 ? Math.round((allCovered / items.length) * 100) : 100;
-
-  return { items, coverageRequired, coverageAll, haveCount, partialCount, missingCount };
-}
-
 // ── Coverage Ring ────────────────────────────────────
-function CoverageRing({ pct, size = 80, stroke = 6 }: { pct: number; size?: number; stroke?: number }) {
+const CoverageRing = memo(function CoverageRing({ pct, size = 80, stroke = 6 }: { pct: number; size?: number; stroke?: number }) {
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (pct / 100) * circumference;
@@ -252,7 +155,7 @@ function CoverageRing({ pct, size = 80, stroke = 6 }: { pct: number; size?: numb
       </text>
     </svg>
   );
-}
+});
 
 // ── Skill Gap Panel ──────────────────────────────────
 function SkillGapPanel({ gap }: { gap: SkillGapResult }) {
@@ -406,15 +309,21 @@ export default function JobDetail({ job, token, profile, onEdit, onBack, onBackT
     setIntelError("");
     getCompanyIntel(token, job.company)
       .then((data) => setIntel(data))
-      .catch((err) => setIntelError(err.message || "Failed to load company intel"))
+      .catch((err) => setIntelError(err instanceof Error ? err.message : "Failed to load company intel"))
       .finally(() => setIntelLoading(false));
   }, [job.company, token]);
 
-  const earnings = intel?.earnings || [];
-  const revenueData = earnings.map((e) => e.revenue);
-  const earningsData = earnings.map((e) => e.earnings);
-  const revenueGrowth = calcGrowth(revenueData);
-  const earningsGrowth = calcGrowth(earningsData);
+  const { revenueData, earningsData, revenueGrowth, earningsGrowth } = useMemo(() => {
+    const earnings = intel?.earnings || [];
+    const rev = earnings.map((e) => e.revenue);
+    const earn = earnings.map((e) => e.earnings);
+    return {
+      revenueData: rev,
+      earningsData: earn,
+      revenueGrowth: calcGrowth(rev),
+      earningsGrowth: calcGrowth(earn),
+    };
+  }, [intel?.earnings]);
 
   // Skill gap analysis
   const extractedSkills = useMemo(() => {
@@ -497,8 +406,8 @@ export default function JobDetail({ job, token, profile, onEdit, onBack, onBackT
       });
       setApplication(created);
       setNextStepDraft(created.nextStep || "");
-    } catch (err: any) {
-      console.error("Failed to start tracking:", err.message);
+    } catch (err) {
+      console.error("Failed to start tracking:", err instanceof Error ? err.message : err);
     }
   }
 
@@ -511,8 +420,8 @@ export default function JobDetail({ job, token, profile, onEdit, onBack, onBackT
       setStatusNote("");
       const h = await getApplicationHistory(token, job.id);
       setHistory(h);
-    } catch (err: any) {
-      console.error("Failed to update status:", err.message);
+    } catch (err) {
+      console.error("Failed to update status:", err instanceof Error ? err.message : err);
     }
   }
 
@@ -527,8 +436,8 @@ export default function JobDetail({ job, token, profile, onEdit, onBack, onBackT
     try {
       const updated = await updateApplicationDetails(token, job.id, details);
       setApplication(updated);
-    } catch (err: any) {
-      console.error("Failed to update details:", err.message);
+    } catch (err) {
+      console.error("Failed to update details:", err instanceof Error ? err.message : err);
     } finally {
       setDetailsSaving(false);
     }
@@ -1045,6 +954,14 @@ export default function JobDetail({ job, token, profile, onEdit, onBack, onBackT
 
         {/* Action links */}
         <div style={{ display: "flex", gap: 10, marginBottom: 28, flexWrap: "wrap" }}>
+          {onCritique && (
+            <button onClick={() => onCritique(job.id)} style={{
+              padding: "9px 20px", background: "rgba(129, 140, 248, 0.06)", color: "#818cf8",
+              borderRadius: "var(--radius-sm)", fontWeight: 700, fontSize: 14,
+              border: "1px solid rgba(129, 140, 248, 0.12)", cursor: "pointer",
+              fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6,
+            }}>Critique Resume</button>
+          )}
           {job.applyUrl && (
             <a href={job.applyUrl} target="_blank" rel="noopener noreferrer" style={{
               padding: "9px 20px", background: "linear-gradient(135deg, #6ee7a8, #34d399)",
@@ -1077,14 +994,6 @@ export default function JobDetail({ job, token, profile, onEdit, onBack, onBackT
               borderRadius: "var(--radius-sm)", fontSize: 14, display: "inline-block",
               textDecoration: "none", border: "1px solid rgba(150, 170, 220, 0.1)",
             }}>Email Recruiter</a>
-          )}
-          {onCritique && (
-            <button onClick={() => onCritique(job.id)} style={{
-              padding: "9px 20px", background: "rgba(129, 140, 248, 0.06)", color: "#818cf8",
-              borderRadius: "var(--radius-sm)", fontWeight: 700, fontSize: 14,
-              border: "1px solid rgba(129, 140, 248, 0.12)", cursor: "pointer",
-              fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6,
-            }}>Critique Resume</button>
           )}
         </div>
 
@@ -1187,7 +1096,7 @@ export default function JobDetail({ job, token, profile, onEdit, onBack, onBackT
               </div>
 
               {/* Sparklines (public cos with earnings) */}
-              {earnings.length >= 2 && (
+              {(intel.earnings?.length ?? 0) >= 2 && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                   <GlassCard style={{ padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
