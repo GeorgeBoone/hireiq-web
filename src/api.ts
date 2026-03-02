@@ -20,6 +20,45 @@ async function apiFetch(path: string, token: string, options: RequestInit = {}) 
 }
 
 // ─── Profile ────────────────────────────────────────
+export interface Experience {
+  title: string;
+  company: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+  current: boolean;
+  description: string;
+}
+
+export interface Education {
+  school: string;
+  degree: string;
+  field: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface Certification {
+  name: string;
+  issuer: string;
+  dateObtained: string;
+  expiryDate?: string;
+  credentialId?: string;
+}
+
+export interface Language {
+  language: string;
+  proficiency: string;
+}
+
+export interface Volunteer {
+  organization: string;
+  role: string;
+  startDate: string;
+  endDate: string;
+  description: string;
+}
+
 export interface Profile {
   id: string;
   email: string;
@@ -30,7 +69,25 @@ export interface Profile {
   salaryMin: number;
   salaryMax: number;
   skills: string[];
+  targetRoles: string[];
   githubUrl: string;
+  experience: Experience[];
+  education: Education[];
+  certifications: Certification[];
+  languages: Language[];
+  volunteer: Volunteer[];
+}
+
+export interface ParsedProfile {
+  name?: string;
+  bio?: string;
+  location?: string;
+  skills?: string[];
+  experience?: Experience[];
+  education?: Education[];
+  certifications?: Certification[];
+  languages?: Language[];
+  volunteer?: Volunteer[];
 }
 
 export const getProfile = (token: string): Promise<Profile> =>
@@ -46,6 +103,18 @@ export const updateSkills = (token: string, skills: string[]) =>
   apiFetch("/profile/skills", token, {
     method: "PUT",
     body: JSON.stringify({ skills }),
+  });
+
+export const getRoleSuggestions = (token: string): Promise<{ roles: string[] }> =>
+  apiFetch("/profile/roles", token);
+
+export const parseResumeToProfile = (
+  token: string,
+  resumeText: string
+): Promise<ParsedProfile> =>
+  apiFetch("/resume/parse-profile", token, {
+    method: "POST",
+    body: JSON.stringify({ resumeText }),
   });
 
 // ─── Jobs ───────────────────────────────────────────
@@ -208,8 +277,8 @@ export interface FeedJob {
 export const getFeed = (token: string): Promise<{ jobs: FeedJob[]; count: number }> =>
   apiFetch("/feed", token);
 
-export const refreshFeed = (token: string): Promise<{ fetched: number; new: number }> =>
-  apiFetch("/feed/refresh", token, { method: "POST" });
+export const refreshFeed = (token: string, force = false): Promise<{ fetched: number; new: number }> =>
+  apiFetch(`/feed/refresh${force ? "?force=true" : ""}`, token, { method: "POST" });
 
 export const dismissFeedJob = (token: string, id: string) =>
   apiFetch(`/feed/${id}/dismiss`, token, { method: "POST" });
@@ -382,6 +451,15 @@ export const compareJobs = (
   apiFetch("/ai/compare", token, {
     method: "POST",
     body: JSON.stringify({ jobIds }),
+  });
+
+export const compareFeedJobs = (
+  token: string,
+  feedJobIds: string[]
+): Promise<CompareResult> =>
+  apiFetch("/feed/compare", token, {
+    method: "POST",
+    body: JSON.stringify({ feedJobIds }),
   });
 
 // ─── Contacts & Network ───────────────────────────
