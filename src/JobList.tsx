@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import type { Job } from "./api";
 import { getJobs, toggleBookmark, deleteJob } from "./api";
+import { STATUS_COLORS } from "./utils/skillMatching";
 import KanbanBoard from "./KanbanBoard";
 
 interface JobListProps {
@@ -61,8 +62,8 @@ export default function JobList({ token, onSelectJob, onAddJob, onCompare }: Job
       if (bookmarkedOnly) params.bookmarked = "true";
       const data = await getJobs(token, Object.keys(params).length > 0 ? params : undefined);
       setJobs(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -81,8 +82,8 @@ export default function JobList({ token, onSelectJob, onAddJob, onCompare }: Job
       setJobs((prev) =>
         prev.map((j) => (j.id === job.id ? { ...j, bookmarked: result.bookmarked } : j))
       );
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -92,8 +93,8 @@ export default function JobList({ token, onSelectJob, onAddJob, onCompare }: Job
     try {
       await deleteJob(token, job.id);
       setJobs((prev) => prev.filter((j) => j.id !== job.id));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -320,15 +321,7 @@ export default function JobList({ token, onSelectJob, onAddJob, onCompare }: Job
         /* List view */
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filteredJobs.map((job) => {
-            const statusColors: Record<string, { bg: string; text: string }> = {
-              saved: { bg: "rgba(129,140,248,0.1)", text: "#818cf8" },
-              applied: { bg: "rgba(192,132,252,0.1)", text: "#c084fc" },
-              screening: { bg: "rgba(251,191,88,0.1)", text: "#fbbf58" },
-              interview: { bg: "rgba(96,165,250,0.1)", text: "#60a5fa" },
-              offer: { bg: "rgba(110,231,168,0.1)", text: "#6ee7a8" },
-              rejected: { bg: "rgba(110,106,128,0.1)", text: "#6e6a80" },
-            };
-            const st = statusColors[job.status || "saved"] || statusColors.saved;
+            const st = STATUS_COLORS[job.status || "saved"] || STATUS_COLORS.saved;
 
             const isSelected = selectedJobIds.has(job.id);
 

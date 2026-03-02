@@ -1,102 +1,23 @@
 // src/JobCompare.tsx
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import type { Job, CompareResult, Profile } from "./api";
 import { compareJobs } from "./api";
+import type { SkillStatus } from "./utils/skillMatching";
+import { analyzeSkillGap, STATUS_COLORS } from "./utils/skillMatching";
 
 interface JobCompareProps {
   jobs: Job[];
   token: string;
   profile?: Profile | null;
   onBack: () => void;
+  compareFn?: (token: string, jobIds: string[]) => Promise<CompareResult>;
+  backLabel?: string;
 }
 
 const JOB_LABELS = ["Job A", "Job B", "Job C", "Job D"];
 
-// ── Skill Gap Logic (shared with JobDetail) ──────────
-
-type SkillStatus = "have" | "partial" | "missing";
-
-interface SkillGapItem {
-  skill: string;
-  status: SkillStatus;
-  matchedWith?: string;
-  isPreferred: boolean;
-}
-
-interface SkillGapResult {
-  items: SkillGapItem[];
-  coverageRequired: number;
-  coverageAll: number;
-  haveCount: number;
-  partialCount: number;
-  missingCount: number;
-}
-
-function normalizeSkill(s: string): string {
-  return s.toLowerCase().replace(/[.\-_\/\s]/g, "").trim();
-}
-
-function isPartialMatch(userSkill: string, jobSkill: string): boolean {
-  const u = normalizeSkill(userSkill);
-  const j = normalizeSkill(jobSkill);
-  if (u.includes(j) || j.includes(u)) return true;
-  const aliases: Record<string, string[]> = {
-    js: ["javascript"], ts: ["typescript"], node: ["nodejs"],
-    react: ["reactjs", "reactnative"], vue: ["vuejs"], angular: ["angularjs"],
-    postgres: ["postgresql"], mongo: ["mongodb"], k8s: ["kubernetes"],
-    aws: ["amazonwebservices"], gcp: ["googlecloud", "googlecloudplatform"],
-    ml: ["machinelearning"], ai: ["artificialintelligence"],
-    css: ["css3"], html: ["html5"], cpp: ["c++", "cplusplus"],
-    csharp: ["c#"], dotnet: [".net", "aspnet"],
-  };
-  for (const [key, vals] of Object.entries(aliases)) {
-    const group = [key, ...vals];
-    if (group.includes(u) && group.includes(j)) return true;
-  }
-  return false;
-}
-
-function analyzeSkillGap(
-  userSkills: string[],
-  requiredSkills: string[],
-  preferredSkills: string[]
-): SkillGapResult {
-  const userNorm = userSkills.map((s) => ({ original: s, norm: normalizeSkill(s) }));
-  const items: SkillGapItem[] = [];
-
-  const processSkill = (skill: string, isPreferred: boolean) => {
-    const norm = normalizeSkill(skill);
-    if (userNorm.some((u) => u.norm === norm)) {
-      items.push({ skill, status: "have", isPreferred });
-      return;
-    }
-    const partial = userNorm.find((u) => isPartialMatch(u.original, skill));
-    if (partial) {
-      items.push({ skill, status: "partial", matchedWith: partial.original, isPreferred });
-      return;
-    }
-    items.push({ skill, status: "missing", isPreferred });
-  };
-
-  requiredSkills.forEach((s) => processSkill(s, false));
-  preferredSkills.forEach((s) => processSkill(s, true));
-
-  const requiredItems = items.filter((i) => !i.isPreferred);
-  const haveCount = items.filter((i) => i.status === "have").length;
-  const partialCount = items.filter((i) => i.status === "partial").length;
-  const missingCount = items.filter((i) => i.status === "missing").length;
-
-  const requiredCovered = requiredItems.filter((i) => i.status === "have" || i.status === "partial").length;
-  const coverageRequired = requiredItems.length > 0 ? Math.round((requiredCovered / requiredItems.length) * 100) : 100;
-
-  const allCovered = items.filter((i) => i.status === "have" || i.status === "partial").length;
-  const coverageAll = items.length > 0 ? Math.round((allCovered / items.length) * 100) : 100;
-
-  return { items, coverageRequired, coverageAll, haveCount, partialCount, missingCount };
-}
-
 // ── Coverage Ring ────────────────────────────────────
-function CoverageRing({ pct, size = 64, stroke = 5 }: { pct: number; size?: number; stroke?: number }) {
+const CoverageRing = memo(function CoverageRing({ pct, size = 64, stroke = 5 }: { pct: number; size?: number; stroke?: number }) {
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (pct / 100) * circumference;
@@ -117,7 +38,7 @@ function CoverageRing({ pct, size = 64, stroke = 5 }: { pct: number; size?: numb
       </text>
     </svg>
   );
-}
+});
 
 // ── Glass Card helper ────────────────────────────────
 function GlassCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -137,7 +58,7 @@ function GlassCard({ children, style }: { children: React.ReactNode; style?: Rea
 }
 
 // ── Score Bar ────────────────────────────────────────
-function ScoreBar({ score, isWinner, color }: { score: number; isWinner: boolean; color: string }) {
+const ScoreBar = memo(function ScoreBar({ score, isWinner, color }: { score: number; isWinner: boolean; color: string }) {
   return (
     <div style={{ flex: 1, height: 8, borderRadius: 4, background: "rgba(200,210,240,0.06)" }}>
       <div style={{
@@ -147,7 +68,7 @@ function ScoreBar({ score, isWinner, color }: { score: number; isWinner: boolean
       }} />
     </div>
   );
-}
+});
 
 // ── Known Skills for auto-detection ──────────────────
 const KNOWN_SKILLS = [
@@ -192,7 +113,7 @@ const DIMENSION_COLORS: Record<string, string> = {
 // MAIN COMPONENT
 // ═════════════════════════════════════════════════════
 
-export default function JobCompare({ jobs, token, profile, onBack }: JobCompareProps) {
+export default function JobCompare({ jobs, token, profile, onBack, compareFn, backLabel }: JobCompareProps) {
   const [comparison, setComparison] = useState<CompareResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -205,10 +126,11 @@ export default function JobCompare({ jobs, token, profile, onBack }: JobCompareP
     setLoading(true);
     setError("");
     try {
-      const result = await compareJobs(token, jobs.map((j) => j.id));
+      const fn = compareFn || compareJobs;
+      const result = await fn(token, jobs.map((j) => j.id));
       setComparison(result);
-    } catch (err: any) {
-      setError(err.message || "Comparison failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Comparison failed");
     } finally {
       setLoading(false);
     }
@@ -234,15 +156,8 @@ export default function JobCompare({ jobs, token, profile, onBack }: JobCompareP
   const isRecommended = (i: number) =>
     comparison?.recommendation === labelForIndex(i);
 
-  // Status badge styling
-  const statusColors: Record<string, { bg: string; text: string }> = {
-    saved: { bg: "rgba(129,140,248,0.1)", text: "#818cf8" },
-    applied: { bg: "rgba(192,132,252,0.1)", text: "#c084fc" },
-    screening: { bg: "rgba(251,191,88,0.1)", text: "#fbbf58" },
-    interview: { bg: "rgba(96,165,250,0.1)", text: "#60a5fa" },
-    offer: { bg: "rgba(110,231,168,0.1)", text: "#6ee7a8" },
-    rejected: { bg: "rgba(110,106,128,0.1)", text: "#6e6a80" },
-  };
+  // Status badge styling (shared constant)
+  const statusColors = STATUS_COLORS;
 
   return (
     <div style={{ maxWidth: "var(--content-max)", margin: "0 auto" }}>
@@ -257,7 +172,7 @@ export default function JobCompare({ jobs, token, profile, onBack }: JobCompareP
               color: "#b0aac0", fontWeight: 500, fontFamily: "inherit", cursor: "pointer",
             }}
           >
-            ← Tracker
+            ← {backLabel || "Tracker"}
           </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

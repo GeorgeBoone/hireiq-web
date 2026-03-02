@@ -59,8 +59,8 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
       if (result.requiredSkills?.length > 0) setRequiredSkills(result.requiredSkills);
       if (result.tags?.length > 0) setTags(result.tags);
       setParsed(true);
-    } catch (err: any) {
-      setParseError(err.message);
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : String(err));
     } finally {
       setParsing(false);
     }
@@ -100,8 +100,8 @@ export default function JobForm({ token, existingJob, onSaved, onCancel }: JobFo
         saved = await api.createJob(token, payload);
       }
       onSaved(saved);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }

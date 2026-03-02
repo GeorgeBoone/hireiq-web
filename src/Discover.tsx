@@ -3,18 +3,50 @@ import { useState, useEffect, useCallback } from "react";
 import type { FeedJob, Job } from "./api";
 import { getFeed, refreshFeed, dismissFeedJob, saveFeedJob } from "./api";
 
+/** Convert a FeedJob to a Job for the detail/compare view. */
+export function feedJobToJob(job: FeedJob): Job {
+  return {
+    id: job.savedJobId || job.id,
+    userId: "",
+    externalId: job.externalId,
+    title: job.title,
+    company: job.company,
+    location: job.location,
+    salaryRange: job.salaryText,
+    jobType: job.jobType,
+    description: job.description,
+    applyUrl: job.applyUrl,
+    requiredSkills: job.requiredSkills,
+    preferredSkills: [],
+    companyLogo: job.companyLogo,
+    matchScore: job.matchScore,
+    source: job.source,
+    bookmarked: false,
+    status: job.saved ? "saved" : "discovered",
+    tags: [],
+    createdAt: job.fetchedAt,
+    updatedAt: job.fetchedAt,
+  };
+}
+
 interface DiscoverProps {
   token: string;
   onSelectJob: (job: Job) => void;
+  onCompare?: (jobs: FeedJob[]) => void;
 }
 
-export default function Discover({ token, onSelectJob }: DiscoverProps) {
+export default function Discover({ token, onSelectJob, onCompare }: DiscoverProps) {
   const [jobs, setJobs] = useState<FeedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [refreshMsg, setRefreshMsg] = useState("");
+
+  // Compare mode state
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
 
   const loadFeed = useCallback(async () => {
     try {
@@ -22,8 +54,8 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
       setError("");
       const data = await getFeed(token);
       setJobs(data.jobs || []);
-    } catch (err: any) {
-      setError(err.message || "Failed to load feed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load feed");
     } finally {
       setLoading(false);
     }
@@ -32,18 +64,49 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
   useEffect(() => { loadFeed(); }, [loadFeed]);
 
   const handleRefresh = async () => {
+    let foundNew = false;
     try {
       setRefreshing(true);
       setError("");
-      const result = await refreshFeed(token);
-      await loadFeed();
-      if (result.fetched === 0 && result.new === 0) {
-        setError("Feed was recently refreshed. Try again later.");
+      setRefreshMsg("");
+
+      // Kick off refresh (returns immediately — refresh runs in background)
+      await refreshFeed(token, true);
+      setRefreshMsg("Refreshing feed — new jobs will appear shortly...");
+
+      // Poll for new results: reload after 5s, 12s, and 25s
+      const prevCount = jobs.length;
+      const delays = [5000, 7000, 13000];
+      for (const delay of delays) {
+        await new Promise((r) => setTimeout(r, delay));
+        try {
+          const data = await getFeed(token);
+          setJobs(data.jobs || []);
+          if ((data.jobs || []).length > prevCount) {
+            foundNew = true;
+            const diff = (data.jobs || []).length - prevCount;
+            setRefreshMsg(`Found ${diff} new job${diff === 1 ? "" : "s"}`);
+            setTimeout(() => setRefreshMsg(""), 5000);
+            break;
+          }
+        } catch {
+          // ignore polling errors
+        }
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to refresh");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to refresh");
     } finally {
       setRefreshing(false);
+      // One final reload to catch any stragglers
+      try {
+        const data = await getFeed(token);
+        setJobs(data.jobs || []);
+      } catch {
+        // ignore
+      }
+      if (!foundNew) {
+        setRefreshMsg("");
+      }
     }
   };
 
@@ -51,8 +114,8 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
     try {
       await dismissFeedJob(token, id);
       setJobs((prev) => prev.filter((j) => j.id !== id));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -61,12 +124,37 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
       setSavingId(id);
       const savedJob = await saveFeedJob(token, id);
       setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, saved: true, savedJobId: savedJob?.id } : j)));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingId(null);
     }
   };
+
+  // ── Compare mode helpers ──────────────────────────
+  function toggleSelection(jobId: string) {
+    setSelectedJobIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobId)) next.delete(jobId);
+      else if (next.size < 4) next.add(jobId);
+      return next;
+    });
+  }
+
+  function handleCompareClick() {
+    if (compareMode && selectedJobIds.size >= 2 && onCompare) {
+      const selectedJobs = jobs.filter((j) => selectedJobIds.has(j.id));
+      onCompare(selectedJobs);
+    } else {
+      setCompareMode(!compareMode);
+      setSelectedJobIds(new Set());
+    }
+  }
+
+  function exitCompareMode() {
+    setCompareMode(false);
+    setSelectedJobIds(new Set());
+  }
 
   const scoreColor = (score: number) => {
     if (score >= 80) return { bg: "var(--success-light)", color: "var(--success)" };
@@ -99,20 +187,85 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
             AI-matched jobs based on your profile
           </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          style={{
-            padding: "9px 22px",
-            background: refreshing ? "var(--border-medium)" : "var(--accent)",
-            color: refreshing ? "var(--text-faint)" : "#fff",
-            border: "none", borderRadius: "var(--radius-sm)",
-            fontSize: 14, fontWeight: 600,
-          }}
-        >
-          {refreshing ? "Refreshing..." : "⟳ Refresh Feed"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {/* Compare button */}
+          {onCompare && jobs.length >= 2 && (
+            <>
+              <button
+                onClick={handleCompareClick}
+                style={{
+                  padding: "9px 22px",
+                  background: compareMode && selectedJobIds.size >= 2
+                    ? "linear-gradient(135deg, #818cf8, #6366f1)"
+                    : compareMode
+                      ? "rgba(129, 140, 248, 0.15)"
+                      : "rgba(200, 210, 240, 0.08)",
+                  color: compareMode && selectedJobIds.size >= 2
+                    ? "#fff"
+                    : compareMode
+                      ? "var(--accent)"
+                      : "var(--text-secondary)",
+                  border: compareMode
+                    ? "1px solid rgba(129, 140, 248, 0.3)"
+                    : "1px solid rgba(150, 170, 220, 0.13)",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: 14, fontWeight: 600,
+                  transition: "all 0.2s",
+                }}
+              >
+                {compareMode
+                  ? selectedJobIds.size >= 2
+                    ? `Compare ${selectedJobIds.size} Jobs`
+                    : `Select jobs (${selectedJobIds.size}/2-4)`
+                  : "Compare"}
+              </button>
+              {compareMode && (
+                <button
+                  onClick={exitCompareMode}
+                  style={{
+                    padding: "9px 14px",
+                    background: "transparent",
+                    border: "1px solid rgba(150, 170, 220, 0.13)",
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: 13, color: "var(--text-muted)",
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+            </>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{
+              padding: "9px 22px",
+              background: refreshing ? "var(--border-medium)" : "var(--accent)",
+              color: refreshing ? "var(--text-faint)" : "#fff",
+              border: "none", borderRadius: "var(--radius-sm)",
+              fontSize: 14, fontWeight: 600,
+            }}
+          >
+            {refreshing ? "Refreshing..." : "⟳ Refresh Feed"}
+          </button>
+        </div>
       </div>
+
+      {/* Compare mode hint */}
+      {compareMode && (
+        <div style={{
+          padding: "10px 16px",
+          background: "rgba(129, 140, 248, 0.08)",
+          border: "1px solid rgba(129, 140, 248, 0.15)",
+          borderRadius: "var(--radius-sm)",
+          color: "var(--accent)", fontSize: 13,
+          marginBottom: 16,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{ fontSize: 16 }}>⚖️</span>
+          Select 2-4 jobs to compare side by side with AI analysis
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -122,6 +275,17 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
           color: "var(--danger)", fontSize: 14, marginBottom: 16,
         }}>
           {error}
+        </div>
+      )}
+
+      {/* Refresh success message */}
+      {refreshMsg && (
+        <div style={{
+          padding: "12px 16px", background: "rgba(110, 231, 168, 0.08)",
+          border: "1px solid rgba(110, 231, 168, 0.2)", borderRadius: "var(--radius-sm)",
+          color: "#6ee7a8", fontSize: 14, marginBottom: 16,
+        }}>
+          ✓ {refreshMsg}
         </div>
       )}
 
@@ -161,51 +325,52 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {jobs.map((job) => {
           const sc = scoreColor(job.matchScore);
+          const isSelected = selectedJobIds.has(job.id);
           return (
             <div
               key={job.id}
-              onClick={() => {
-                onSelectJob({
-                  id: job.savedJobId || job.id,
-                  title: job.title,
-                  company: job.company,
-                  location: job.location,
-                  salaryRange: job.salaryText,
-                  jobType: job.jobType,
-                  description: job.description,
-                  applyUrl: job.applyUrl,
-                  requiredSkills: job.requiredSkills,
-                  preferredSkills: [],
-                  matchScore: job.matchScore,
-                  source: job.source,
-                  companyLogo: job.companyLogo,
-                  bookmarked: false,
-                  status: job.saved ? "saved" : "discovered",
-                  tags: [],
-                  hiringEmail: "",
-                  createdAt: job.fetchedAt,
-                } as any);
-              }}
+              onClick={() => compareMode ? toggleSelection(job.id) : onSelectJob(feedJobToJob(job))}
               style={{
-                background: job.saved
-                  ? "rgba(110, 231, 168, 0.07)"
-                  : "rgba(200, 210, 240, 0.09)",
+                background: isSelected
+                  ? "rgba(129, 140, 248, 0.12)"
+                  : job.saved
+                    ? "rgba(110, 231, 168, 0.07)"
+                    : "rgba(200, 210, 240, 0.09)",
                 backdropFilter: "blur(20px)",
                 WebkitBackdropFilter: "blur(20px)",
-                border: job.saved
-                  ? "1px solid rgba(110, 231, 168, 0.15)"
-                  : "1px solid rgba(150, 170, 220, 0.13)",
+                border: isSelected
+                  ? "1px solid rgba(129, 140, 248, 0.4)"
+                  : job.saved
+                    ? "1px solid rgba(110, 231, 168, 0.15)"
+                    : "1px solid rgba(150, 170, 220, 0.13)",
                 borderRadius: "var(--radius-md)",
                 padding: "20px 24px",
                 transition: "all 0.4s ease",
                 cursor: "pointer",
-                boxShadow: job.saved
-                  ? "0 0 24px rgba(110, 231, 168, 0.06), 0 4px 16px rgba(0,0,0,0.15)"
-                  : expandedId === job.id ? "var(--shadow-md)" : "none",
+                boxShadow: isSelected
+                  ? "0 0 24px rgba(129, 140, 248, 0.1), 0 4px 16px rgba(0,0,0,0.15)"
+                  : job.saved
+                    ? "0 0 24px rgba(110, 231, 168, 0.06), 0 4px 16px rgba(0,0,0,0.15)"
+                    : expandedId === job.id ? "var(--shadow-md)" : "none",
               }}
             >
               {/* Top row */}
               <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                {/* Checkbox in compare mode */}
+                {compareMode && (
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0, paddingTop: 2,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      readOnly
+                      style={{ width: 18, height: 18, accentColor: "#818cf8", cursor: "pointer" }}
+                    />
+                  </div>
+                )}
+
                 {/* Logo */}
                 {job.companyLogo ? (
                   <img
@@ -296,58 +461,60 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
               )}
 
               {/* Actions */}
-              <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
-                <button
-                  onClick={() => setExpandedId(expandedId === job.id ? null : job.id)}
-                  style={{
-                    padding: "6px 14px", background: "rgba(200, 210, 240, 0.06)",
-                    border: "1px solid rgba(150, 170, 220, 0.1)", borderRadius: "var(--radius-sm)",
-                    fontSize: 13, color: "#b0aac0",
-                  }}
-                >
-                  {expandedId === job.id ? "Less ▲" : "More ▼"}
-                </button>
-
-                {job.applyUrl && (
-                  <a
-                    href={job.applyUrl} target="_blank" rel="noopener noreferrer"
+              {!compareMode && (
+                <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
+                  <button
+                    onClick={() => setExpandedId(expandedId === job.id ? null : job.id)}
                     style={{
                       padding: "6px 14px", background: "rgba(200, 210, 240, 0.06)",
                       border: "1px solid rgba(150, 170, 220, 0.1)", borderRadius: "var(--radius-sm)",
-                      fontSize: 13, color: "var(--accent)", textDecoration: "none",
+                      fontSize: 13, color: "#b0aac0",
                     }}
                   >
-                    Apply ↗
-                  </a>
-                )}
+                    {expandedId === job.id ? "Less ▲" : "More ▼"}
+                  </button>
 
-                <div style={{ flex: 1 }} />
+                  {job.applyUrl && (
+                    <a
+                      href={job.applyUrl} target="_blank" rel="noopener noreferrer"
+                      style={{
+                        padding: "6px 14px", background: "rgba(200, 210, 240, 0.06)",
+                        border: "1px solid rgba(150, 170, 220, 0.1)", borderRadius: "var(--radius-sm)",
+                        fontSize: 13, color: "var(--accent)", textDecoration: "none",
+                      }}
+                    >
+                      Apply ↗
+                    </a>
+                  )}
 
-                <button
-                  onClick={() => handleDismiss(job.id)}
-                  style={{
-                    padding: "6px 14px", background: "transparent",
-                    border: "1px solid rgba(150, 170, 220, 0.1)", borderRadius: "var(--radius-sm)",
-                    fontSize: 13, color: "#8a8498",
-                  }}
-                >
-                  ✕ Not for me
-                </button>
+                  <div style={{ flex: 1 }} />
 
-                <button
-                  onClick={() => handleSave(job.id)}
-                  disabled={job.saved || savingId === job.id}
-                  style={{
-                    padding: "6px 16px",
-                    background: job.saved ? "rgba(110, 231, 168, 0.08)" : "var(--accent)",
-                    color: job.saved ? "#6ee7a8" : "#fff",
-                    border: job.saved ? "1px solid rgba(110, 231, 168, 0.2)" : "none",
-                    borderRadius: "var(--radius-sm)", fontSize: 13, fontWeight: 600,
-                  }}
-                >
-                  {job.saved ? "✓ Saved" : savingId === job.id ? "Saving..." : "Save to Tracker"}
-                </button>
-              </div>
+                  <button
+                    onClick={() => handleDismiss(job.id)}
+                    style={{
+                      padding: "6px 14px", background: "transparent",
+                      border: "1px solid rgba(150, 170, 220, 0.1)", borderRadius: "var(--radius-sm)",
+                      fontSize: 13, color: "#8a8498",
+                    }}
+                  >
+                    ✕ Not for me
+                  </button>
+
+                  <button
+                    onClick={() => handleSave(job.id)}
+                    disabled={job.saved || savingId === job.id}
+                    style={{
+                      padding: "6px 16px",
+                      background: job.saved ? "rgba(110, 231, 168, 0.08)" : "var(--accent)",
+                      color: job.saved ? "#6ee7a8" : "#fff",
+                      border: job.saved ? "1px solid rgba(110, 231, 168, 0.2)" : "none",
+                      borderRadius: "var(--radius-sm)", fontSize: 13, fontWeight: 600,
+                    }}
+                  >
+                    {job.saved ? "✓ Saved" : savingId === job.id ? "Saving..." : "Save to Tracker"}
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
@@ -359,7 +526,7 @@ export default function Discover({ token, onSelectJob }: DiscoverProps) {
           textAlign: "center", marginTop: 24, padding: 16,
           color: "var(--text-faint)", fontSize: 13,
         }}>
-          Showing {jobs.length} jobs matched to your profile · Feed refreshes daily
+          Showing {jobs.length} jobs matched to your profile · Feed refreshes every 2 hours
         </div>
       )}
     </div>

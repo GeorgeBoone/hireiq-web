@@ -70,8 +70,8 @@ export default function Network({ token, onViewJob }: NetworkProps) {
     try {
       const data = await getCompanies(token);
       setCompanies(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -83,8 +83,8 @@ export default function Network({ token, onViewJob }: NetworkProps) {
     try {
       const data = await getContacts(token, searchTerm || undefined);
       setContacts(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -108,8 +108,8 @@ export default function Network({ token, onViewJob }: NetworkProps) {
     try {
       const data = await getCompanyDetail(token, company);
       setCompanyDetail(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setDetailLoading(false);
     }
@@ -162,8 +162,8 @@ export default function Network({ token, onViewJob }: NetworkProps) {
       }
       // Also refresh companies to update contact counts
       loadCompanies();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setFormSaving(false);
     }
@@ -183,8 +183,8 @@ export default function Network({ token, onViewJob }: NetworkProps) {
       // Refresh contacts list
       if (subView === "contacts") loadContacts(search);
       loadCompanies();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setImporting(false);
     }
@@ -200,8 +200,8 @@ export default function Network({ token, onViewJob }: NetworkProps) {
         setCompanyDetail(data);
       }
       loadCompanies();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 

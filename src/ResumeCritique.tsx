@@ -139,8 +139,8 @@ export default function ResumeCritique({ token, preselectedJobId }: ResumeCritiq
       const data = await uploadResume(token, file);
       setResumeText(data.text);
       setResumeFilename(data.filename || file.name);
-    } catch (err: any) {
-      setUploadError(err.message);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : String(err));
     } finally {
       setUploading(false);
     }
