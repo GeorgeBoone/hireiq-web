@@ -198,6 +198,9 @@ export interface StatusHistory {
 export const getApplication = (token: string, jobId: string): Promise<Application | null> =>
   apiFetch(`/jobs/${jobId}/application`, token);
 
+export const listApplications = (token: string): Promise<Application[]> =>
+  apiFetch("/applications", token);
+
 export const createApplication = (
   token: string,
   jobId: string,

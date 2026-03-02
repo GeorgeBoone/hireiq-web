@@ -13,9 +13,11 @@ import JobCompare from "./JobCompare";
 import ResumeCritique from "./ResumeCritique";
 import Network from "./Network";
 import HireIQLogo from "./HireIQLogo";
+import Dashboard from "./Dashboard";
 import LandingPage from "./LandingPage";
 
 type View =
+  | { page: "dashboard" }
   | { page: "jobs" }
   | { page: "discover" }
   | { page: "job-detail"; job: Job }
@@ -32,7 +34,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string>("");
-  const [view, setView] = useState<View>({ page: "discover" });
+  const [view, setView] = useState<View>({ page: "dashboard" });
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
@@ -175,6 +177,7 @@ function App() {
 
   // ── Tab styling ─────────────────────────────────────
   const isActive = (check: string) => {
+    if (check === "dashboard") return view.page === "dashboard";
     if (check === "discover") return view.page === "discover" || (view.page === "compare" && view.source === "discover");
     if (check === "tracker") return view.page.startsWith("job") || (view.page === "compare" && view.source !== "discover");
     if (check === "resume") return view.page === "resume";
@@ -219,7 +222,7 @@ function App() {
           {/* Left: Logo + Tabs */}
           <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
             <div
-              onClick={() => setView({ page: "jobs" })}
+              onClick={() => setView({ page: "dashboard" })}
               style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer" }}
             >
               <HireIQLogo size={30} />
@@ -237,6 +240,7 @@ function App() {
               border: "1px solid var(--glass-border)",
               borderRadius: 10, padding: 3,
             }}>
+              <button onClick={() => setView({ page: "dashboard" })} style={tabStyle("dashboard")}>Home</button>
               <button onClick={() => setView({ page: "discover" })} style={tabStyle("discover")}>Discover</button>
               <button onClick={() => setView({ page: "jobs" })} style={tabStyle("tracker")}>Tracker</button>
               <button onClick={() => setView({ page: "resume" })} style={tabStyle("resume")}>Resume</button>
@@ -313,6 +317,15 @@ function App() {
             </span>
           </div>
         )}
+        {view.page === "dashboard" && (
+          <Dashboard
+            token={token}
+            profile={profile}
+            onSelectJob={(job) => setView({ page: "job-detail", job })}
+            onNavigate={(page) => setView({ page })}
+          />
+        )}
+
         {view.page === "jobs" && (
           <JobList
             token={token}
