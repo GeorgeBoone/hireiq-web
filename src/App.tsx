@@ -572,6 +572,15 @@ function ProfileEditor({
     }
   }
 
+  async function clearAllSkills() {
+    try {
+      await api.updateSkills(token, []);
+      setProfile({ ...profile, skills: [] });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   function addRole(role: string) {
     const trimmed = role.trim();
     if (!trimmed || targetRoles.length >= 3) return;
@@ -825,9 +834,18 @@ function ProfileEditor({
               letterSpacing: 0.5, textTransform: "uppercase",
             }}>Primary</span>
           </div>
-          <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400 }}>
-            {targetRoles.length}/3
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {targetRoles.length > 0 && (
+              <button onClick={() => setTargetRoles([])} style={{
+                background: "none", border: "none", color: "rgba(248, 113, 113, 0.7)",
+                cursor: "pointer", fontSize: 11, fontWeight: 600, padding: 0,
+                fontFamily: "inherit",
+              }}>Clear All</button>
+            )}
+            <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400 }}>
+              {targetRoles.length}/3
+            </span>
+          </div>
         </div>
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2, marginBottom: 12 }}>
           What roles are you targeting? These drive your Discover feed.
@@ -910,7 +928,16 @@ function ProfileEditor({
 
       {/* ── Skills ──────────────────────────────── */}
       <div style={cardStyle}>
-        <div style={{ ...sectionHeader, marginBottom: 12 }}>Skills</div>
+        <div style={{ ...sectionHeader, marginBottom: 12 }}>
+          <span>Skills</span>
+          {(profile.skills || []).length > 0 && (
+            <button onClick={clearAllSkills} style={{
+              background: "none", border: "none", color: "rgba(248, 113, 113, 0.7)",
+              cursor: "pointer", fontSize: 11, fontWeight: 600, padding: 0,
+              fontFamily: "inherit",
+            }}>Clear All</button>
+          )}
+        </div>
         <input value={skillInput} onChange={(e) => setSkillInput(e.target.value)} onKeyDown={addSkill} placeholder="Type a skill and press Enter" />
         <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
           {(profile.skills || []).map((s: string) => (
